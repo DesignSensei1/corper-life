@@ -34,3 +34,18 @@ npm run build    # production build in dist/, ready for Vercel or Netlify
 - `src/ui/` – HUD, phone, menus and modals.
 
 To add a new place, add a station to `src/game/stations.ts` with its actions; it appears in the world with a ring and label automatically.
+
+## Player stats (Vercel Web Analytics)
+
+The game reports page views to Vercel Web Analytics. To see them, open your project on vercel.com, go to the **Analytics** tab and click **Enable**. Visitors show up there after the next deploy.
+
+## Campmates (online, optional)
+
+The phone's **Campmates** tab lists real players posted to the same state as you, with a green dot for anyone playing right now. It uses a free Supabase project; without one the game plays offline and the tab says so.
+
+1. Create a project at supabase.com.
+2. Open **SQL Editor**, paste `supabase/schema.sql` and click **Run**.
+3. In **Project Settings > API**, copy the Project URL and the anon (publishable) key.
+4. In Vercel, open **Settings > Environment Variables** and add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` with those values, then redeploy.
+
+For local play, put the same two lines in a `.env.local` file.

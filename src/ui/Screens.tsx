@@ -3,6 +3,7 @@ import { clearSave, useGame } from '../game/store'
 import { objectives } from '../game/stations'
 import { ALLAWEE, naira } from '../game/time'
 import { STATES } from '../game/states'
+import { ONLINE_ENABLED, lastSeen, useOnline } from '../online/campmates'
 
 export function Menu() {
   const hasSave = useGame((s) => s.hasSave)
@@ -104,7 +105,7 @@ export function EventModal() {
 
 export function Phone() {
   const s = useGame()
-  const [tab, setTab] = useState<'tasks' | 'wallet' | 'me'>('tasks')
+  const [tab, setTab] = useState<'tasks' | 'wallet' | 'mates' | 'me'>('tasks')
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.code === 'KeyP') useGame.getState().togglePhone()
@@ -119,9 +120,9 @@ export function Phone() {
       <div className="phone" onClick={(e) => e.stopPropagation()}>
         <div className="phone-notch" />
         <div className="tabs">
-          {(['tasks', 'wallet', 'me'] as const).map((t) => (
+          {(['tasks', 'wallet', 'mates', 'me'] as const).map((t) => (
             <button key={t} className={tab === t ? 'tab on' : 'tab'} onClick={() => setTab(t)}>
-              {t === 'tasks' ? 'Tasks' : t === 'wallet' ? 'Allawee Wallet' : 'Profile'}
+              {t === 'tasks' ? 'Tasks' : t === 'wallet' ? 'Wallet' : t === 'mates' ? 'Campmates' : 'Profile'}
             </button>
           ))}
         </div>
@@ -162,6 +163,7 @@ export function Phone() {
               </ul>
             </div>
           )}
+          {tab === 'mates' && <Campmates state={s.posting?.state ?? ''} camp={s.posting?.camp ?? ''} />}
           {tab === 'me' && (
             <div className="profile">
               <h3>{s.name}</h3>
@@ -177,6 +179,32 @@ export function Phone() {
           Close
         </button>
       </div>
+    </div>
+  )
+}
+
+function Campmates({ state, camp }: { state: string; camp: string }) {
+  const { status, mates, here } = useOnline()
+  const online = new Set(here)
+  const sorted = [...mates].sort((a, b) => Number(online.has(b.id)) - Number(online.has(a.id)))
+  return (
+    <div className="mates">
+      <div className="tiny muted">Real players posted to {state} ({camp} camp)</div>
+      {!ONLINE_ENABLED && <p className="muted">Campmates isn't switched on for this version of the game yet. You're playing offline.</p>}
+      {status === 'connecting' && <p className="muted">Checking who's in camp…</p>}
+      {status === 'error' && <p className="muted">Couldn't reach the camp list right now. It will retry in a couple of minutes.</p>}
+      {status === 'live' && sorted.length === 0 && <p className="muted">No other corpers here yet. Share the game with your friends!</p>}
+      <ul className="txs">
+        {sorted.map((m) => (
+          <li key={m.id}>
+            <span>
+              <span className={online.has(m.id) ? 'dot on' : 'dot'} /> {m.name}
+              {m.lga && <small className="muted"> · {m.lga}</small>}
+            </span>
+            <small className="muted">{lastSeen(m.last_seen, online.has(m.id))}</small>
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }

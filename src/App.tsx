@@ -5,10 +5,12 @@ import { Scene } from './world/Scene'
 import { HUD } from './ui/HUD'
 import { CallUpModal, EndScreen, EventModal, Menu, Phone, PostingModal } from './ui/Screens'
 import { MapView } from './ui/Map'
+import { useCampmatesSync } from './online/campmates'
 
 export default function App() {
   const phase = useGame((s) => s.phase)
   useEffect(() => bindKeyboard(), [])
+  useCampmatesSync()
 
   if (phase === 'menu') return <Menu />
   if (phase === 'ended') return <EndScreen />

@@ -95,6 +95,10 @@ button { font: inherit; cursor: pointer; }
 .txs li { display: flex; justify-content: space-between; gap: 8px; border-bottom: 1px solid #eee; padding-bottom: 6px; }
 .credit { color: var(--green-dark); font-weight: 700; white-space: nowrap; }
 .debit { color: #c62828; font-weight: 700; white-space: nowrap; }
+.mates p { font-size: 13px; }
+.mates .txs { margin-top: 10px; }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #bbb; margin-right: 4px; }
+.dot.on { background: #2e7d32; }
 .profile h3 { margin: 0; }
 .profile p { margin: 4px 0 12px; font-size: 13px; }
 .stat { display: grid; grid-template-columns: 110px 1fr 30px; gap: 8px; align-items: center; font-size: 13px; margin-bottom: 8px; }
