@@ -1,0 +1,172 @@
+import { useMemo } from 'react'
+import { useGame } from '../game/store'
+import { CAMP_STATIONS, TOWN_STATIONS } from '../game/stations'
+import type { Station } from '../game/types'
+import { Car, Fence, FlagPole, Ground, Keke, Label, NPC, Palm, Patch, StationBuilding, Tree, Wall } from './Props'
+import { LOOKS } from './Person'
+
+const decor = (id: string, name: string, pos: [number, number], size: [number, number, number], color: string, roof: string): Station => ({
+  id,
+  name,
+  pos,
+  building: { size, color, roof },
+  actions: [],
+})
+
+/** Deterministic pseudo-random scatter so trees don't move between renders. */
+function scatter(seed: number, n: number, r: number, avoid: (x: number, z: number) => boolean): [number, number][] {
+  const out: [number, number][] = []
+  let s = seed
+  const rnd = () => ((s = (s * 16807) % 2147483647) / 2147483647)
+  let guard = 0
+  while (out.length < n && guard++ < n * 40) {
+    const x = (rnd() * 2 - 1) * r
+    const z = (rnd() * 2 - 1) * r
+    if (!avoid(x, z)) out.push([x, z])
+  }
+  return out
+}
+
+function inStation(stations: Station[], x: number, z: number, pad = 5) {
+  return stations.some((st) => {
+    const [w, , d] = st.building.size
+    return Math.abs(x - st.pos[0]) < w / 2 + pad && Math.abs(z - st.pos[1]) < d / 2 + pad + 3
+  })
+}
+
+// ------------------------------------------------------------------ CAMP
+
+export const CAMP_DECOR = [
+  decor('hostelA', 'Hostel A', [0, -38], [16, 4, 8], '#e8dcc0', '#8d6e63'),
+  decor('admin', 'Camp Admin', [-38, 34], [10, 4.5, 7], '#fff3e0', '#2e7d32'),
+]
+
+export function CampWorld() {
+  const campName = useGame((s) => s.posting?.camp ?? '')
+  const all = [...CAMP_STATIONS, ...CAMP_DECOR]
+  const trees = useMemo(
+    () =>
+      scatter(7, 40, 49, (x, z) => inStation(all, x, z) || (Math.abs(x) < 21 && z > -16 && z < 12) || (Math.abs(x) < 4 && z > 8)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  )
+  return (
+    <group>
+      <Ground size={240} color="#689f38" />
+      <Patch pos={[0, 0]} size={[104, 104]} color="#d2bf94" y={0.01} />
+      {/* parade ground with white lines */}
+      <Patch pos={[0, -2]} size={[36, 22]} color="#bfa877" y={0.02} />
+      {[-10.6, 6.6].map((z) => (
+        <Patch key={z} pos={[0, z]} size={[36, 0.3]} color="#fff" y={0.03} />
+      ))}
+      {[-17.8, 17.8].map((x) => (
+        <Patch key={x} pos={[x, -2]} size={[0.3, 22]} color="#fff" y={0.03} />
+      ))}
+      <Patch pos={[0, 30]} size={[4, 44]} color="#a1887f" y={0.025} />
+      <FlagPole pos={[-1, -14]} />
+      {/* raised dais for the camp commandant */}
+      <Wall pos={[6, -16]} size={[8, 0.6, 3]} color="#8d6e63" />
+
+      <Fence r={52} gate={8} color="#bdbdbd" />
+      <group position={[0, 0, 53]}>
+        <Label text={`NYSC ORIENTATION CAMP · ${campName.toUpperCase()}`} y={4} />
+      </group>
+      {[-4.5, 4.5].map((x) => (
+        <Wall key={x} pos={[x, 52]} size={[1.2, 4, 1.2]} color="#2e7d32" />
+      ))}
+
+      {CAMP_STATIONS.map((st) => (
+        <StationBuilding key={st.id} st={st} />
+      ))}
+      {CAMP_DECOR.map((st) => (
+        <StationBuilding key={st.id} st={st} decor />
+      ))}
+
+      {/* bonfire logs at the social arena */}
+      <group position={[-20, 0, 24]}>
+        {[0, 1, 2].map((i) => (
+          <mesh key={i} position={[0, 0.2, 0]} rotation={[0, (i * Math.PI) / 3, Math.PI / 2]}>
+            <cylinderGeometry args={[0.15, 0.15, 2, 6]} />
+            <meshStandardMaterial color="#5d4037" />
+          </mesh>
+        ))}
+        <mesh position={[0, 0.6, 0]}>
+          <coneGeometry args={[0.5, 1.1, 6]} />
+          <meshStandardMaterial color="#ff6d00" emissive="#ff3d00" emissiveIntensity={1.2} />
+        </mesh>
+      </group>
+
+      {trees.map((p, i) => (i % 3 === 0 ? <Palm key={i} pos={p} /> : <Tree key={i} pos={p} s={0.9 + (i % 4) * 0.12} />))}
+
+      <NPC look={LOOKS.soldier} name="Soldier" path={[[4, -6]]} />
+      <NPC look={LOOKS.soldier} name="Soldier" path={[[-16, 12], [16, 12], [16, -14], [-16, -14]]} speed={1.4} />
+      <NPC look={LOOKS.official} name="Camp official" path={[[17, 34.4]]} />
+      <NPC look={LOOKS.mama} name="Iya Basira" path={[[24, -1.6]]} />
+      <NPC look={LOOKS.campWhites} path={[[-6, 40], [-6, 14], [-24, 14], [-24, -20]]} />
+      <NPC look={LOOKS.campWhites} path={[[10, -24], [30, -24], [30, 0], [10, 0]]} speed={1.3} />
+      <NPC look={LOOKS.campWhites} path={[[-30, 18], [-10, 18], [-10, 36]]} speed={1.8} />
+      <NPC look={LOOKS.campWhites} path={[[22, 40], [36, 40], [36, 10]]} />
+      <NPC look={LOOKS.campWhites} path={[[-40, -20], [-40, -40], [-12, -42]]} speed={1.2} />
+    </group>
+  )
+}
+
+// ------------------------------------------------------------------ TOWN
+
+export const TOWN_DECOR = [
+  decor('h1', 'Church', [-40, -14], [9, 6, 10], '#fafafa', '#90a4ae'),
+  decor('h2', 'Pharmacy', [-12, -10], [7, 3.5, 5], '#e0f7fa', '#00838f'),
+  decor('h3', 'Bank', [-8, 12], [10, 5, 7], '#cfd8dc', '#1a237e'),
+  decor('h4', 'Mosque', [40, 34], [9, 5, 9], '#fff9c4', '#2e7d32'),
+]
+
+export function TownWorld() {
+  const all = [...TOWN_STATIONS, ...TOWN_DECOR]
+  const trees = useMemo(
+    () => scatter(11, 34, 51, (x, z) => inStation(all, x, z) || Math.abs(z) < 7 || Math.abs(x - 10) < 7),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  )
+  return (
+    <group>
+      <Ground size={240} color="#7cb342" />
+      {/* roads */}
+      <Patch pos={[0, 0]} size={[110, 8]} color="#455a64" y={0.02} />
+      <Patch pos={[10, 0]} size={[8, 110]} color="#455a64" y={0.021} />
+      {Array.from({ length: 18 }, (_, i) => (
+        <Patch key={i} pos={[-52 + i * 6, 0]} size={[2.5, 0.25]} color="#fff59d" y={0.03} />
+      ))}
+      {/* red-earth paths to buildings */}
+      <Patch pos={[-24, -10]} size={[3, 12]} color="#bf8a5a" y={0.015} />
+      <Patch pos={[26, -13]} size={[3, 10]} color="#bf8a5a" y={0.015} />
+      <Patch pos={[-26, 10]} size={[3, 6]} color="#bf8a5a" y={0.015} />
+      <Patch pos={[-4, -24]} size={[3, 18]} color="#bf8a5a" y={0.015} />
+
+      <Fence r={55} color="#a1887f" />
+
+      {TOWN_STATIONS.map((st) => (
+        <StationBuilding key={st.id} st={st} />
+      ))}
+      {TOWN_DECOR.map((st) => (
+        <StationBuilding key={st.id} st={st} decor />
+      ))}
+
+      <Car pos={[-14, 6]} color="#c62828" rot={Math.PI / 2} />
+      <Car pos={[20, -6]} color="#1565c0" rot={Math.PI / 2} />
+      <Car pos={[14.5, 30]} color="#f5f5f5" />
+      <Keke path={[[-50, 2], [50, 2], [50, -2], [-50, -2]]} speed={6} />
+      <Keke path={[[12, -50], [12, 50], [8, 50], [8, -50]]} speed={5} />
+
+      {trees.map((p, i) => (i % 2 === 0 ? <Palm key={i} pos={p} /> : <Tree key={i} pos={p} s={0.9 + (i % 3) * 0.15} />))}
+
+      <NPC look={LOOKS.official} name="Principal" path={[[22, -19.5], [30, -19.5]]} speed={0.8} />
+      <NPC look={LOOKS.civil} name="LGI" path={[[-22, 22.5]]} />
+      <NPC look={LOOKS.mama} name="Mama Put" path={[[3, 30.5]]} />
+      <NPC look={LOOKS.khaki} path={[[-30, 8], [30, 8]]} speed={1.5} />
+      <NPC look={LOOKS.civil} path={[[16, -40], [16, 40]]} speed={1.7} />
+      <NPC look={{ shirt: '#8e24aa', pants: '#4a148c' }} path={[[-46, -30], [-10, -30], [-10, -46]]} />
+      <NPC look={{ shirt: '#ff7043', pants: '#5d4037' }} path={[[20, 24], [44, 24], [44, 40]]} speed={1.3} />
+      <NPC look={{ shirt: '#4caf50', pants: '#212121' }} name="Okada man" path={[[6, 6]]} />
+    </group>
+  )
+}
