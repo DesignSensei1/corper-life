@@ -54,10 +54,17 @@ export interface Mate {
 export type Role = '' | 'none' | 'leader' | 'obs' | 'manowar'
 export type Trade = '' | 'baking' | 'fashion' | 'ict' | 'photo' | 'makeup'
 export type CdsKind = '' | 'borehole' | 'library' | 'health'
+export type Background = '' | 'nepo' | 'lapo'
+export type Travel = '' | 'flight' | 'bus' | 'night'
 
 export interface GameData {
   phase: Phase
   name: string
+  /** state of residence you travel from */
+  home: string
+  /** NEPO baby (rich) or LAPO baby (average) */
+  background: Background
+  travel: Travel
   minutes: number
   energy: number
   hunger: number
@@ -86,6 +93,8 @@ export interface GameData {
   f: Record<string, number>
 }
 
+export type MinigameKind = 'drill' | 'manowar' | 'register'
+
 export interface Action {
   id: string
   label: string
@@ -99,7 +108,7 @@ export interface Action {
   sleeping?: boolean
   effect: Effect | ((s: GameData) => Effect)
   /** play a mini-game first; its score (0–100) is in s.f.score when the effect runs */
-  minigame?: 'drill' | 'manowar'
+  minigame?: MinigameKind
   /** label can depend on state (e.g. your trade) */
   labelFor?: (s: GameData) => string
   /** extra rule; return a reason string when blocked */

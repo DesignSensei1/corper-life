@@ -4,7 +4,9 @@ import { cupPlace, objectives, ordinal } from '../game/stations'
 import { ending } from '../game/endings'
 import { CDS, ROLES, TRADES, isOffice, PPA_WORK } from '../game/people'
 import type { GameData } from '../game/types'
-import { ALLAWEE, naira } from '../game/time'
+import { ALLAWEE, fmtTime, naira } from '../game/time'
+import { BACKGROUNDS, roadKm, travelOptions } from '../game/journey'
+import type { Travel } from '../game/types'
 import { STATES } from '../game/states'
 import { ONLINE_ENABLED, lastSeen, useOnline } from '../online/campmates'
 
@@ -13,6 +15,8 @@ export function Menu() {
   const newGame = useGame((s) => s.newGame)
   const cont = useGame((s) => s.continueGame)
   const [name, setName] = useState('')
+  const [home, setHome] = useState('')
+  const start = () => home && newGame(name, home)
   return (
     <div className="overlay menu">
       <div className="card">
@@ -27,9 +31,22 @@ export function Menu() {
         </p>
         <label className="field">
           Your name
-          <input value={name} maxLength={20} placeholder="e.g. Chiamaka Bello" onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && newGame(name)} />
+          <input value={name} maxLength={20} placeholder="e.g. Chiamaka Bello" onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && start()} />
         </label>
-        <button className="primary" onClick={() => newGame(name)}>
+        <label className="field">
+          State of residence
+          <select value={home} onChange={(e) => setHome(e.target.value)}>
+            <option value="" disabled>
+              Where are you travelling from?
+            </option>
+            {STATES.map((st) => (
+              <option key={st.state} value={st.state}>
+                {st.state}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button className="primary" disabled={!home} onClick={start}>
           {hasSave ? 'Start a new service year' : 'Report to camp'}
         </button>
         {hasSave && (
@@ -175,6 +192,12 @@ export function Phone() {
           {tab === 'me' && (
             <div className="profile">
               <h3>{s.name}</h3>
+              {s.background && (
+                <p className="muted">
+                  {BACKGROUNDS[s.background].title}
+                  {s.home ? ` from ${s.home}` : ''}
+                </p>
+              )}
               <p className="muted">{s.posting?.ppa ? `${s.posting.ppa}, ${s.posting.lga}, ${s.posting.state} State` : `${s.posting?.camp ?? ''} Orientation Camp, ${s.posting?.state ?? ''}`}</p>
               <Stat label="Corps rating" v={s.rating} />
               <Stat label="Skills (SAED)" v={s.skills} />
@@ -332,16 +355,19 @@ export function EndScreen() {
   )
 }
 
-/** Call-up letter shown right after you enter your name: a quick shuffle through states, then your posting. */
+/** Call-up letter shown right after you enter your name: a quick shuffle through states, then your posting, then the trip to camp. */
 export function CallUpModal() {
   const show = useGame((s) => s.showCallUp)
   const posting = useGame((s) => s.posting)
   const name = useGame((s) => s.name)
+  const home = useGame((s) => s.home)
   const close = useGame((s) => s.closeCallUp)
   const [spin, setSpin] = useState<string | null>(null)
+  const [step, setStep] = useState<'letter' | 'trip'>('letter')
 
   useEffect(() => {
     if (!show || !posting) return
+    setStep('letter')
     const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
     if (reduce) {
       setSpin(null)
@@ -360,6 +386,8 @@ export function CallUpModal() {
   }, [show, posting])
 
   if (!show || !posting) return null
+  // older saves have no home state: skip the trip
+  if (step === 'trip' && home) return <Journey />
   return (
     <div className="overlay menu">
       <div className="card letter">
@@ -367,7 +395,7 @@ export function CallUpModal() {
         <p>
           Dear <strong>{name}</strong>, you have been mobilised for the national service year and posted to
         </p>
-        <div className={spin ? 'callup-state spinning' : 'callup-state'}>{spin ?? `${posting.state}${posting.state.startsWith('FCT') ? '' : ' State'}`}</div>
+        <div className={spin ? 'callup-state spinning' : 'callup-state'}>{spin ?? stateName(posting.state)}</div>
         {!spin && (
           <>
             <div className="posting">
@@ -381,9 +409,103 @@ export function CallUpModal() {
                 <span className="muted">Bring</span> Call-up letter, statement of result, passport photos
               </div>
             </div>
-            <button className="primary" onClick={close}>
-              Report to camp
+            <button className="primary" onClick={() => (home ? setStep('trip') : close())}>
+              {home ? 'Plan your trip' : 'Report to camp'}
             </button>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+const stateName = (st: string) => `${st}${st.startsWith('FCT') ? '' : ' State'}`
+
+const TRIP_MS = 2600
+
+/** The journey from your state of residence to camp. */
+function Journey() {
+  const s = useGame()
+  const [going, setGoing] = useState<Travel | null>(null)
+  const [arrived, setArrived] = useState(false)
+  if (!s.posting || !s.background) return null
+  const bg = BACKGROUNDS[s.background]
+  const camp = s.posting.state
+  const opts = travelOptions(s.home, camp, s.background)
+  const km = roadKm(s.home, camp)
+
+  const go = (t: Travel) => {
+    setGoing(t)
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    setTimeout(
+      () => {
+        useGame.getState().travelToCamp(t)
+        setArrived(true)
+      },
+      reduce ? 0 : TRIP_MS,
+    )
+  }
+
+  return (
+    <div className="overlay menu">
+      <div className="card letter">
+        <div className="tiny muted">THE JOURNEY TO CAMP</div>
+        {!going && (
+          <>
+            <div className={`bg-badge ${s.background}`}>{s.background === 'nepo' ? '💎' : '🪙'} You're a {bg.title}!</div>
+            <p>{bg.blurb}</p>
+            <div className="posting">
+              <div>
+                <span className="muted">Wallet</span> <strong>{naira(s.money)}</strong>
+              </div>
+              <div>
+                <span className="muted">Route</span> {s.home === camp ? `Within ${stateName(camp)}` : `${s.home} → ${camp} · about ${km} km`}
+              </div>
+            </div>
+            <p className="tiny muted">How are you getting to camp?</p>
+            {opts.map((o) => (
+              <button key={o.id} className="secondary trip-opt" disabled={s.money < o.cost} onClick={() => go(o.id)}>
+                <span>
+                  <strong>{o.title}</strong> · {naira(o.cost)}
+                </span>
+                <small className="muted">
+                  {o.note} Arrive {o.arrive < 1440 ? 'Monday' : 'Tuesday'} ~{fmtTime(o.arrive)}.
+                </small>
+              </button>
+            ))}
+            {s.background === 'lapo' && <p className="tiny muted">Flying? On a LAPO budget? Maybe after your first allawee.</p>}
+          </>
+        )}
+        {going && (
+          <>
+            <div className="trip-road">
+              <span className="trip-end">{s.home}</span>
+              <div className="trip-track">
+                <span className={arrived ? 'trip-vehicle done' : 'trip-vehicle'} style={{ animationDuration: `${TRIP_MS}ms` }}>
+                  {going === 'flight' ? '✈️' : '🚌'}
+                </span>
+              </div>
+              <span className="trip-end">{camp}</span>
+            </div>
+            {!arrived && <p className="muted">{going === 'night' ? 'Rolling through the night…' : going === 'flight' ? 'In the air…' : 'On the road…'}</p>}
+            {arrived && (
+              <>
+                {s.tripLog?.map((l) => (
+                  <p key={l}>{l}</p>
+                ))}
+                <div className="posting">
+                  <div>
+                    <span className="muted">Arrived</span> Monday {fmtTime(s.minutes)}
+                  </div>
+                  <div>
+                    <span className="muted">Wallet</span> {naira(s.money)}
+                  </div>
+                </div>
+                <button className="primary" onClick={s.closeCallUp}>
+                  Enter camp
+                </button>
+              </>
+            )}
           </>
         )}
       </div>
