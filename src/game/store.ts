@@ -1,9 +1,10 @@
 import { create } from 'zustand'
-import type { Action, Effect, GameData, GameEvent, Station } from './types'
+import type { Action, Background, Effect, GameData, GameEvent, MinigameKind, Station, Travel } from './types'
 import { CAMP_STATIONS, TOWN_STATIONS } from './stations'
 import { assignPPA, randomCallUp } from './states'
 import { CDS_EVENT, ROLE_EVENT, TRADE_EVENT, rollEvent } from './events'
 import { PPA_WORK, makeMates, ppaKind } from './people'
+import { BACKGROUNDS, nightBusMishap, travelOptions } from './journey'
 import { ALLAWEE, END_DAY, MIN_PER_SEC, PPA_START_DAY, RENT, dayOf, hourOf, monthOf, naira, weekdayOf, WEEKDAYS } from './time'
 
 const SAVE_KEY = 'corper-life-save-v1'
@@ -26,12 +27,15 @@ interface Runtime {
   eventClock: number
   seenEvents: string[]
   hasSave: boolean
+  /** what happened on the trip to camp, shown before you enter */
+  tripLog: string[] | null
   /** a mini-game waiting to be played before an action resolves */
-  minigame: { kind: 'drill' | 'manowar'; stationId: string; actionId: string } | null
+  minigame: { kind: MinigameKind; stationId: string; actionId: string } | null
 }
 
 interface Api {
-  newGame: (name: string) => void
+  newGame: (name: string, home: string) => void
+  travelToCamp: (t: Travel) => void
   continueGame: () => void
   quitToMenu: () => void
   tick: (realSeconds: number) => void
@@ -49,9 +53,12 @@ interface Api {
 
 export type Store = GameData & Runtime & Api
 
-const fresh = (name: string): GameData => ({
+const fresh = (name: string, home = '', background: Background = ''): GameData => ({
   phase: 'camp',
   name,
+  home,
+  background,
+  travel: '',
   minutes: 7 * 60, // Monday 7:00am, you arrive at camp
   energy: 85,
   hunger: 70,
@@ -239,6 +246,7 @@ const initial: GameData & Runtime = {
   eventClock: 0,
   seenEvents: [],
   hasSave: !!loadSave(),
+  tripLog: null,
   minigame: null,
 }
 
@@ -255,15 +263,49 @@ export const useGame = create<Store>()((set, get) => {
   return {
     ...initial,
 
-    newGame: (name) => {
-      set({ ...fresh(name.trim() || 'Corper'), posting: randomCallUp(), messages: [], event: null, eventResult: null, showPosting: false, showCallUp: true, mapOpen: false, eventClock: 0, seenEvents: [], minigame: null })
+    newGame: (name, home) => {
+      const bg: Background = Math.random() < 0.5 ? 'nepo' : 'lapo'
+      const b = BACKGROUNDS[bg]
+      set({
+        ...fresh(name.trim() || 'Corper', home, bg),
+        money: b.wallet,
+        txs: [{ day: 0, label: b.tx, amount: b.wallet }],
+        posting: randomCallUp(home),
+        messages: [], event: null, eventResult: null, showPosting: false, showCallUp: true, tripLog: null, mapOpen: false, eventClock: 0, seenEvents: [], minigame: null,
+      })
       save(get())
+    },
+
+    travelToCamp: (t) => {
+      const s = get()
+      const opt = travelOptions(s.home, s.posting?.state ?? '', s.background).find((o) => o.id === t)
+      if (!opt || s.tripLog) return
+      const log: string[] = []
+      commit((dr) => {
+        const d = dr.d
+        d.travel = t
+        d.minutes = opt.arrive
+        d.energy = opt.energy
+        d.mood = opt.mood
+        applyEffect(dr, { money: -opt.cost, tx: opt.id === 'flight' ? 'Flight + taxi to camp' : opt.id === 'night' ? 'Night bus to camp' : 'Bus fare to camp' }, 'Transport to camp')
+        const bad = t === 'night' ? nightBusMishap(d.money) : null
+        if (bad) {
+          const { arriveLate, msg, ...eff } = bad
+          if (arriveLate) d.minutes += arriveLate
+          applyEffect(dr, eff, 'Night bus')
+          if (msg) log.push(msg)
+        } else if (t === 'night') log.push('The road was rough but you made it in one piece. You slept through most of it.')
+        else if (t === 'flight') log.push('Smooth flight, cold zobo on arrival. You stroll into camp looking fresh.')
+        else log.push('Long ride, loud music and three "toilet stops" in the bush. You made it.')
+        dr.msgs = []
+      })
+      set({ tripLog: log })
     },
 
     continueGame: () => {
       const d = loadSave()
       if (!d) return
-      set({ ...d, posting: d.posting ?? randomCallUp(), messages: [], event: null, minigame: null, showCallUp: false, mapOpen: false, showPosting: d.phase === 'camp' && !!d.f.postingReady })
+      set({ ...d, posting: d.posting ?? randomCallUp(d.home), messages: [], event: null, minigame: null, showCallUp: !!d.home && !d.travel, tripLog: null, mapOpen: false, showPosting: d.phase === 'camp' && !!d.f.postingReady })
     },
 
     quitToMenu: () => {
@@ -375,7 +417,7 @@ export const useGame = create<Store>()((set, get) => {
     toggleMap: (open) => set({ mapOpen: open ?? !get().mapOpen, phoneOpen: false }),
 
     closeCallUp: () => {
-      set({ showCallUp: false })
+      set({ showCallUp: false, tripLog: null })
       commit((dr) => note(dr, 'Welcome to orientation camp! Walk to the Registration Tent near the gate to register. Tap 🗺️ for the camp map.', 'good'))
     },
 

@@ -22,6 +22,8 @@ npm run build    # production build in dist/, ready for Vercel or Netlify
 
 - Time: 1 real second = 2 game minutes. Each service "month" is one in-game week.
 - Needs: energy, fullness and mood drain over time. Run out of energy and you faint.
+- The journey: pick your state of residence, find out if you're a NEPO baby (big wallet, can fly or take the bus) or a LAPO baby (average wallet, bus only), then travel to camp by plane, day bus or the cheaper, riskier night bus.
+- Registration: a timed mini-game where you hand the officer each document they ask for. Run out of time and you're told to come back in 2 hours.
 - Camp (Mon–Thu): register, get sworn in, attend drills, lectures and SAED, then collect your posting letter.
 - PPA (4 months): each month work 3 days at your PPA, attend CDS on Thursday, then get cleared by the LGI on Friday or Saturday. Allawee (₦77,000) pays on Monday if you were cleared. Rent comes out monthly.
 - Side hustles: POS stand at the market and private lessons at the estate. SAED skills raise what they pay.

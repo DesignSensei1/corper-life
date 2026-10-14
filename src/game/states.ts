@@ -45,8 +45,8 @@ export const STATES: { state: string; camp: string; lgas: [string, string][] }[]
 const pick = <T,>(a: T[]) => a[Math.floor(Math.random() * a.length)]
 
 /** Call-up: a random state and its orientation camp. LGA and PPA come later with the posting letter. */
-export function randomCallUp(): Posting {
-  const s = pick(STATES)
+export function randomCallUp(exclude = ''): Posting {
+  const s = pick(STATES.filter((x) => x.state !== exclude))
   return { state: s.state, camp: s.camp, lga: '', ppa: '' }
 }
 

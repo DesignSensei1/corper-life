@@ -149,3 +149,31 @@ button { font: inherit; cursor: pointer; }
 .txs li.mine { font-weight: 700; color: var(--green-dark); }
 .badges { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
 .tab { font-size: 12px; }
+
+/* journey to camp */
+.field select { font: inherit; padding: 12px; border-radius: 10px; border: 2px solid #cfd8d3; font-weight: 400; background: #fff; color: var(--ink); }
+.field select:focus { outline: none; border-color: var(--green); }
+.primary:disabled { background: #a5b8ae; cursor: not-allowed; }
+.bg-badge { font-size: 24px; font-weight: 800; text-align: center; padding: 10px; border-radius: 12px; }
+.bg-badge.nepo { background: #fff6d6; color: #8a6100; }
+.bg-badge.lapo { background: #e6f4ec; color: var(--green-dark); }
+.trip-opt { display: grid; gap: 4px; text-align: left; }
+.trip-opt:disabled { opacity: 0.5; }
+.trip-road { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px; padding: 16px 0; }
+.trip-end { font-weight: 700; font-size: 13px; }
+.trip-track { position: relative; height: 34px; border-bottom: 3px dashed #9fb3a8; }
+.trip-vehicle { position: absolute; left: 0; bottom: 2px; font-size: 26px; animation-name: trip-go; animation-timing-function: ease-in-out; animation-fill-mode: forwards; }
+.trip-vehicle.done { left: calc(100% - 30px); animation: none; }
+@keyframes trip-go { from { left: 0; } to { left: calc(100% - 30px); } }
+
+/* registration documents */
+.doc-ask { font-size: 20px; font-weight: 700; padding: 12px 0; color: var(--green-dark); min-height: 2.6em; display: grid; place-items: center; }
+.doc-ask.miss { color: #e53935; }
+.doc-time { height: 100%; background: var(--green); transition: width 0.1s linear; }
+.doc-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.doc { display: grid; gap: 2px; justify-items: center; border: 2px solid #dfe7e2; background: #fffdf6; border-radius: 10px; padding: 10px 4px; font-size: 12px; font-weight: 600; touch-action: manipulation; user-select: none; }
+.doc-icon { font-size: 24px; }
+.doc.done { opacity: 0.45; }
+.doc small { font-size: 10px; }
+@media (prefers-reduced-motion: reduce) { .trip-vehicle { animation: none; left: calc(100% - 30px); } }
+.mg-timer > .doc-time { animation: none; }

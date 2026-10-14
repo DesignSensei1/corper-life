@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useGame } from '../game/store'
+import { Documents } from './Documents'
 
 interface Move {
   id: string
@@ -58,6 +59,7 @@ type Phase = 'intro' | 'play' | 'done'
 export function Minigame() {
   const mg = useGame((s) => s.minigame)
   if (!mg) return null
+  if (mg.kind === 'register') return <Documents key={mg.stationId + mg.actionId} />
   return <Round key={mg.stationId + mg.actionId} kind={mg.kind} />
 }
 

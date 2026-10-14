@@ -1,5 +1,5 @@
 import type { Action, Effect, GameData, Station } from './types'
-import { WEEKDAYS, dayOf, hourOf, minutesUntilHour, monthOf, naira, weekdayOf } from './time'
+import { WEEKDAYS, dayOf, fmtTime, hourOf, minutesUntilHour, monthOf, naira, weekdayOf } from './time'
 import { BIZ_GOAL } from './endings'
 import { CDS, GEAR_COST, PPA_WORK, ROLES, TRADES, bestMate, bizIncome, isOffice, ppaKind, pick } from './people'
 
@@ -42,15 +42,27 @@ export const CAMP_STATIONS: Station[] = [
     actions: [
       {
         id: 'register',
-        label: 'Register & collect kits',
-        duration: 90,
+        label: 'Submit documents & register',
+        minigame: 'register',
+        duration: (s) => (flag(s, 'score') >= 100 ? 90 : 20),
         hidden: (s) => !!flag(s, 'registered'),
-        effect: (s) => ({
-          energy: -6,
-          mood: 6,
-          msg: `Registered! You got your kits: whites, khaki, jungle boots and cap. You're in Platoon ${s.platoon}, Bunk 14, Hostel B, with ${s.mates.map((m) => m.name).join(', ')}.`,
-        }),
-        done: (s) => ({ f: { ...s.f, registered: 1 } }),
+        check: (s) => (flag(s, 'regRetry') > s.minutes ? `Come back at ${fmtTime(flag(s, 'regRetry'))}` : null),
+        effect: (s) =>
+          flag(s, 'score') >= 100
+            ? {
+                energy: -6,
+                mood: 6,
+                msg: `Registered! You got your kits: whites, khaki, jungle boots and cap. You're in Platoon ${s.platoon}, Bunk 14, Hostel B, with ${s.mates.map((m) => m.name).join(', ')}.`,
+              }
+            : { energy: -4, mood: -8, msg: '"Oga corper, you are wasting my time! Go and arrange your documents and come back in 2 hours."' },
+        done: (s) => (flag(s, 'score') >= 100 ? { f: { ...s.f, registered: 1 } } : { f: { ...s.f, regRetry: s.minutes + 20 + 120 } }),
+      },
+      {
+        id: 'regwait',
+        label: 'Wait in the shade till they call you back',
+        hidden: (s) => !!flag(s, 'registered') || flag(s, 'regRetry') <= s.minutes,
+        duration: (s) => Math.max(1, flag(s, 'regRetry') - s.minutes),
+        effect: { energy: 4, mood: -3, msg: 'You sat under the tent, fanning yourself with your call-up letter. The officer is ready for you again.' },
       },
       {
         id: 'schedule',
