@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { actionStatus, stationsFor, useGame } from '../game/store'
+import { actionStatus, costOf, labelOf, stationsFor, useGame } from '../game/store'
 import { objectives } from '../game/stations'
 import type { Action, GameData } from '../game/types'
 import { WEEKDAYS, dayOf, fmtTime, monthOf, naira, weekdayOf, SERVICE_MONTHS } from '../game/time'
@@ -89,7 +89,7 @@ function ActionPanel() {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  if (!st || s.event || s.eventResult || s.showPosting || s.showCallUp || s.mapOpen || s.phoneOpen) return null
+  if (!st || s.event || s.eventResult || s.showPosting || s.showCallUp || s.mapOpen || s.phoneOpen || s.minigame) return null
   const name = st.id === 'ppa' && s.posting ? s.posting.ppa : st.name
   return (
     <div className="actions panel">
@@ -98,12 +98,14 @@ function ActionPanel() {
       {visible.map((a, i) => {
         const reason = actionStatus(s as GameData, st.id, a)
         const minutes = typeof a.duration === 'function' ? a.duration(s) : a.duration
+        const cost = costOf(s, a)
         return (
           <button key={a.id} className="action" disabled={!!reason} onClick={() => s.doAction(st.id, a.id)}>
             <span className="key">{i + 1}</span>
             <span className="action-label">
-              {a.label}
-              <small>{reason ?? [a.cost ? naira(a.cost) : null, dur(minutes)].filter(Boolean).join(' · ')}</small>
+              {labelOf(s, a)}
+              {a.minigame && ' 🎮'}
+              <small>{reason ?? [cost ? naira(cost) : null, dur(minutes)].filter(Boolean).join(' · ')}</small>
             </span>
           </button>
         )

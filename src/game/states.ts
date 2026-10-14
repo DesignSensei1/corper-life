@@ -1,4 +1,5 @@
-import type { Posting } from './types'
+import type { Posting, Role } from './types'
+import { PPA_NAMES, pickPpaKind } from './people'
 
 /** All 36 states plus the FCT, with each orientation camp and a few LGAs for PPA posting. */
 export const STATES: { state: string; camp: string; lgas: [string, string][] }[] = [
@@ -49,18 +50,11 @@ export function randomCallUp(): Posting {
   return { state: s.state, camp: s.camp, lga: '', ppa: '' }
 }
 
-const PPA_KINDS = [
-  (t: string) => `Govt. Secondary School, ${t}`,
-  (t: string) => `Community High School, ${t}`,
-  (t: string) => `General Hospital, ${t}`,
-  (t: string) => `Local Government Secretariat, ${t}`,
-  (t: string) => `Comprehensive High School, ${t}`,
-]
-
-/** Posting letter: an LGA and PPA inside the state you were called up to. */
-export function assignPPA(p: Posting | null): Posting {
+/** Posting letter: an LGA and PPA inside the state you were called up to. A strong camp record makes an office posting likelier. */
+export function assignPPA(p: Posting | null, rating = 50, role: Role = ''): Posting {
   const base = p?.state ? p : randomCallUp()
   const st = STATES.find((s) => s.state === base.state) ?? pick(STATES)
   const [lga, town] = pick(st.lgas)
-  return { ...base, camp: base.camp || st.camp, lga, ppa: pick(PPA_KINDS)(town) }
+  const kind = pickPpaKind(rating, role)
+  return { ...base, camp: base.camp || st.camp, lga, ppa: PPA_NAMES[kind](town), kind }
 }

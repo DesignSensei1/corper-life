@@ -134,3 +134,18 @@ button { font: inherit; cursor: pointer; }
 .map-detail ul { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 6px; font-size: 14px; }
 .map-detail li { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 @media (max-width: 520px) { .map-btn span { display: none; } .map-btn { width: 46px; padding: 0; justify-content: center; } }
+
+/* mini-games */
+.minigame { text-align: center; }
+.mg-prompt { font-size: 40px; font-weight: 800; padding: 18px 0; color: var(--green-dark); transition: transform 0.1s; }
+.mg-prompt.hit { transform: scale(1.15); }
+.mg-prompt.miss { color: #e53935; }
+.mg-timer { height: 8px; background: #eef3f0; border-radius: 6px; overflow: hidden; }
+.mg-timer > div { height: 100%; background: var(--green); animation-name: mg-shrink; animation-timing-function: linear; animation-fill-mode: forwards; }
+@keyframes mg-shrink { from { width: 100%; } to { width: 0%; } }
+.mg-moves { display: flex; gap: 8px; }
+.mg-moves button { flex: 1; font-size: 18px; padding: 18px 8px; touch-action: manipulation; user-select: none; }
+.good-note { background: #e8f5e9; border-radius: 10px; padding: 10px; }
+.txs li.mine { font-weight: 700; color: var(--green-dark); }
+.badges { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
+.tab { font-size: 12px; }

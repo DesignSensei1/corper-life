@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { actionStatus, hourLabel, stationsFor, useGame } from '../game/store'
+import { actionStatus, costOf, hourLabel, labelOf, stationsFor, useGame } from '../game/store'
 import { doorOf } from '../game/stations'
 import { playerPos } from '../game/input'
 import type { Action, GameData, Station } from '../game/types'
@@ -20,11 +20,12 @@ const TOWN_GROUND: Rect[] = [
   { pos: [10, 0], size: [8, 110], color: '#546e7a' },
 ]
 
-function schedule(a: Action) {
+function schedule(a: Action, s: GameData) {
   const parts: string[] = []
   if (a.weekdays) parts.push(a.weekdays.map((w) => WEEKDAYS[w].slice(0, 3)).join(', '))
   parts.push(a.window ? `${hourLabel(a.window[0])}–${hourLabel(a.window[1])}` : 'any time')
-  if (a.cost) parts.push(naira(a.cost))
+  const cost = costOf(s, a)
+  if (cost) parts.push(naira(cost))
   return parts.join(' · ')
 }
 
@@ -159,8 +160,8 @@ export function MapView() {
                   const reason = actionStatus(s as GameData, sel.id, a)
                   return (
                     <li key={a.id}>
-                      <span className={reason ? 'muted' : ''}>{a.label}</span>
-                      <small className="muted">{schedule(a)}</small>
+                      <span className={reason ? 'muted' : ''}>{labelOf(s, a)}</span>
+                      <small className="muted">{schedule(a, s)}</small>
                     </li>
                   )
                 })}

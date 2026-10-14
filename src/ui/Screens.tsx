@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
 import { clearSave, useGame } from '../game/store'
-import { objectives } from '../game/stations'
+import { cupPlace, objectives, ordinal } from '../game/stations'
+import { ending } from '../game/endings'
+import { CDS, ROLES, TRADES, isOffice, PPA_WORK } from '../game/people'
+import type { GameData } from '../game/types'
 import { ALLAWEE, naira } from '../game/time'
 import { STATES } from '../game/states'
 import { ONLINE_ENABLED, lastSeen, useOnline } from '../online/campmates'
@@ -62,6 +65,7 @@ export function PostingModal() {
             <span className="muted">PPA</span> {s.posting.ppa}
           </div>
         </div>
+        {isOffice(s.posting.kind) && <p className="good-note">Your strong camp record landed you an office posting! You'll need a corporate outfit, and it pays a {naira(PPA_WORK[s.posting.kind!].stipend)} monthly stipend on top of allawee.</p>}
         <p className="muted">Transport costs {naira(5000)} and your first month's lodge rent is due on arrival.</p>
         <button className="primary" onClick={s.travelToPPA}>
           Travel to {s.posting.lga}
@@ -71,7 +75,10 @@ export function PostingModal() {
   )
 }
 
+const txt = (v: string | ((s: GameData) => string), s: GameData) => (typeof v === 'function' ? v(s) : v)
+
 export function EventModal() {
+  const s = useGame()
   const ev = useGame((s) => s.event)
   const result = useGame((s) => s.eventResult)
   const choose = useGame((s) => s.chooseEvent)
@@ -91,11 +98,11 @@ export function EventModal() {
   return (
     <div className="overlay">
       <div className="card">
-        <h2>{ev.title}</h2>
-        <p>{ev.text}</p>
+        <h2>{txt(ev.title, s)}</h2>
+        <p>{txt(ev.text, s)}</p>
         {ev.choices.map((c, i) => (
           <button key={i} className={i === 0 ? 'primary' : 'secondary'} onClick={() => choose(i)}>
-            {c.label}
+            {txt(c.label, s)}
           </button>
         ))}
       </div>
@@ -105,7 +112,7 @@ export function EventModal() {
 
 export function Phone() {
   const s = useGame()
-  const [tab, setTab] = useState<'tasks' | 'wallet' | 'mates' | 'me'>('tasks')
+  const [tab, setTab] = useState<'tasks' | 'wallet' | 'people' | 'mates' | 'me'>('tasks')
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.code === 'KeyP') useGame.getState().togglePhone()
@@ -120,9 +127,9 @@ export function Phone() {
       <div className="phone" onClick={(e) => e.stopPropagation()}>
         <div className="phone-notch" />
         <div className="tabs">
-          {(['tasks', 'wallet', 'mates', 'me'] as const).map((t) => (
+          {(['tasks', 'wallet', 'people', 'mates', 'me'] as const).map((t) => (
             <button key={t} className={tab === t ? 'tab on' : 'tab'} onClick={() => setTab(t)}>
-              {t === 'tasks' ? 'Tasks' : t === 'wallet' ? 'Wallet' : t === 'mates' ? 'Campmates' : 'Profile'}
+              {t === 'tasks' ? 'Tasks' : t === 'wallet' ? 'Wallet' : t === 'people' ? 'Friends' : t === 'mates' ? 'Online' : 'Profile'}
             </button>
           ))}
         </div>
@@ -163,6 +170,7 @@ export function Phone() {
               </ul>
             </div>
           )}
+          {tab === 'people' && <Friends s={s} />}
           {tab === 'mates' && <Campmates state={s.posting?.state ?? ''} camp={s.posting?.camp ?? ''} />}
           {tab === 'me' && (
             <div className="profile">
@@ -171,7 +179,24 @@ export function Phone() {
               <Stat label="Corps rating" v={s.rating} />
               <Stat label="Skills (SAED)" v={s.skills} />
               <Stat label="CDS project" v={s.project} />
-              <p className="tiny muted">Higher skills pay more at side hustles. Finish the CDS project with a high rating to win a State Honours Award.</p>
+              <div className="posting">
+                <div>
+                  <span className="muted">Platoon</span> {s.platoon}
+                  {s.role && s.role !== 'none' ? ` · ${ROLES[s.role].title}` : ''}
+                </div>
+                {s.trade && (
+                  <div>
+                    <span className="muted">SAED trade</span> {TRADES[s.trade].title}
+                    {s.gear > 0 ? ` · ${TRADES[s.trade].gear.slice(0, s.gear).join(', ')}` : ''}
+                  </div>
+                )}
+                {s.cdsKind && (
+                  <div>
+                    <span className="muted">CDS project</span> {CDS[s.cdsKind].title}
+                  </div>
+                )}
+              </div>
+              <p className="tiny muted">Higher skills pay more at your business and side hustles. Finish the CDS project with a high rating to win a State Honours Award. Your boss, your savings and your business decide what happens after POP.</p>
             </div>
           )}
         </div>
@@ -209,6 +234,41 @@ function Campmates({ state, camp }: { state: string; camp: string }) {
   )
 }
 
+function Friends({ s }: { s: GameData }) {
+  const ranked = s.cup.map((p, i) => ({ p, n: i + 1 })).sort((a, b) => b.p - a.p)
+  return (
+    <div className="mates">
+      <div className="tiny muted">Your bunkmates. Do things together to get closer.</div>
+      {s.mates.map((m) => (
+        <div className="stat" key={m.name}>
+          <span>
+            <span className="dot on" style={{ background: m.shirt }} /> {m.name} <small className="muted">· {m.from}</small>
+          </span>
+          <div className="bar-track">
+            <div className="bar-fill" style={{ width: `${m.bond}%`, background: '#ec407a' }} />
+          </div>
+          <span className="num">{Math.round(m.bond)}</span>
+        </div>
+      ))}
+      <div className="tiny muted" style={{ marginTop: 12 }}>
+        {s.phase === 'camp' ? `Camp cup · Platoon ${s.platoon} is ${ordinal(cupPlace(s))}` : 'Final camp cup table'}
+      </div>
+      <ul className="txs">
+        {ranked.slice(0, 5).map((r, i) => (
+          <li key={r.n} className={r.n === s.platoon ? 'mine' : ''}>
+            <span>
+              {ordinal(i + 1)} · Platoon {r.n}
+              {r.n === s.platoon ? ' (you)' : ''}
+            </span>
+            <span>{r.p} pts</span>
+          </li>
+        ))}
+      </ul>
+      {s.phase === 'camp' && <p className="tiny muted">Earn points with drills, Man O' War, football, social nights and platoon competitions. The cup is awarded with the posting letters.</p>}
+    </div>
+  )
+}
+
 function Stat({ label, v }: { label: string; v: number }) {
   return (
     <div className="stat">
@@ -223,19 +283,19 @@ function Stat({ label, v }: { label: string; v: number }) {
 
 export function EndScreen() {
   const s = useGame()
-  const honours = s.project >= 100 && s.rating >= 80 && s.monthsMissed === 0
-  const extended = s.monthsMissed > 0
-  const title = honours ? '🏅 State Honours Award!' : extended ? 'Service year extended' : '🎓 Passing Out Parade!'
-  const text = honours
-    ? 'Your CDS project changed the community and your record was spotless. The governor shook your hand at POP.'
-    : extended
-      ? `You missed clearance for ${s.monthsMissed} month(s). You must serve extra months before you get your certificate.`
-      : 'You collected your Certificate of National Service. On to the labour market!'
+  const { title, text, badges } = ending(s)
   return (
     <div className="overlay menu">
       <div className="card">
         <h1>{title}</h1>
         <p>{text}</p>
+        {badges.length > 0 && (
+          <ul className="badges">
+            {badges.map((b) => (
+              <li key={b}>{b}</li>
+            ))}
+          </ul>
+        )}
         <div className="posting">
           <div>
             <span className="muted">Savings</span> {naira(s.money)}
@@ -252,6 +312,11 @@ export function EndScreen() {
           <div>
             <span className="muted">Skills</span> {Math.round(s.skills)}/100
           </div>
+          {s.trade && (
+            <div>
+              <span className="muted">Business earnings</span> {naira(s.bizEarned)}
+            </div>
+          )}
         </div>
         <button
           className="primary"

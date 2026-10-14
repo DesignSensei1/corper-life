@@ -11,6 +11,14 @@ export interface Effect {
   msg?: string
   /** label for the wallet history when money changes */
   tx?: string
+  /** raise (or lower) your bond with every bunkmate */
+  bond?: number
+  /** points for your platoon in the camp cup */
+  cup?: number
+  /** counters and flags to set */
+  f?: Record<string, number>
+  /** other game data to replace (role, trade, cdsKind…) */
+  data?: Partial<GameData>
 }
 
 export interface Tx {
@@ -25,12 +33,27 @@ export interface MonthProgress {
   cleared: boolean
 }
 
+export type PpaKind = 'school' | 'hospital' | 'lga' | 'bank' | 'ministry' | 'corporate'
+
 export interface Posting {
   state: string
   camp: string
   lga: string
   ppa: string
+  kind?: PpaKind
 }
+
+export interface Mate {
+  name: string
+  /** state of origin, for flavour */
+  from: string
+  bond: number
+  shirt: string
+}
+
+export type Role = '' | 'none' | 'leader' | 'obs' | 'manowar'
+export type Trade = '' | 'baking' | 'fashion' | 'ict' | 'photo' | 'makeup'
+export type CdsKind = '' | 'borehole' | 'library' | 'health'
 
 export interface GameData {
   phase: Phase
@@ -48,6 +71,17 @@ export interface GameData {
   monthsCleared: number
   monthsMissed: number
   txs: Tx[]
+  platoon: number
+  /** camp cup points for platoons 1–10 (index 0 = platoon 1) */
+  cup: number[]
+  mates: Mate[]
+  role: Role
+  trade: Trade
+  /** trade equipment level 0–2 */
+  gear: number
+  /** total earned from your SAED trade business */
+  bizEarned: number
+  cdsKind: CdsKind
   /** generic counters and flags: drills, lectures, registered, food, last-done days... */
   f: Record<string, number>
 }
@@ -61,9 +95,13 @@ export interface Action {
   weekdays?: number[]
   oncePerDay?: boolean
   duration: number | ((s: GameData) => number)
-  cost?: number
+  cost?: number | ((s: GameData) => number)
   sleeping?: boolean
   effect: Effect | ((s: GameData) => Effect)
+  /** play a mini-game first; its score (0–100) is in s.f.score when the effect runs */
+  minigame?: 'drill' | 'manowar'
+  /** label can depend on state (e.g. your trade) */
+  labelFor?: (s: GameData) => string
   /** extra rule; return a reason string when blocked */
   check?: (s: GameData) => string | null
   /** state changes besides the effect (counters, flags) */
@@ -89,14 +127,16 @@ export interface Station {
 }
 
 export interface Choice {
-  label: string
+  label: string | ((s: GameData) => string)
   resolve: (s: GameData) => Effect
 }
 
 export interface GameEvent {
   id: string
-  title: string
-  text: string
+  title: string | ((s: GameData) => string)
+  text: string | ((s: GameData) => string)
+  /** storyline steps are picked before ordinary random events */
+  story?: boolean
   when: (s: GameData) => boolean
   choices: Choice[]
 }
