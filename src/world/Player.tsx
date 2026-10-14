@@ -26,7 +26,7 @@ export function Player({ spawn, look, stations }: { spawn: [number, number]; loo
     if (!rb) return
     const dt = Math.min(rawDt, 0.1)
     const g = useGame.getState()
-    const frozen = !!(g.event || g.eventResult || g.showPosting || g.showCallUp || g.mapOpen || g.phoneOpen)
+    const frozen = !!(g.event || g.eventResult || g.showPosting || g.showCallUp || g.mapOpen || g.phoneOpen || g.minigame)
 
     let x = frozen ? 0 : input.x + input.joyX
     let z = frozen ? 0 : input.z + input.joyZ

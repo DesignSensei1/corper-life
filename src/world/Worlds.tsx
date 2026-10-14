@@ -1,7 +1,8 @@
 import { useMemo } from 'react'
 import { useGame } from '../game/store'
 import { CAMP_STATIONS, TOWN_STATIONS } from '../game/stations'
-import type { Station } from '../game/types'
+import type { BuildingSpec, PpaKind, Station } from '../game/types'
+import { PPA_WORK, bestMate } from '../game/people'
 import { Car, Fence, FlagPole, Ground, Keke, Label, NPC, Palm, Patch, StationBuilding, Tree, Wall } from './Props'
 import { LOOKS } from './Person'
 
@@ -102,6 +103,7 @@ export function CampWorld() {
       <NPC look={LOOKS.soldier} name="Soldier" path={[[-16, 12], [16, 12], [16, -14], [-16, -14]]} speed={1.4} />
       <NPC look={LOOKS.official} name="Camp official" path={[[17, 34.4]]} />
       <NPC look={LOOKS.mama} name="Iya Basira" path={[[24, -1.6]]} />
+      <Bunkmates />
       <NPC look={LOOKS.campWhites} path={[[-6, 40], [-6, 14], [-24, 14], [-24, -20]]} />
       <NPC look={LOOKS.campWhites} path={[[10, -24], [30, -24], [30, 0], [10, 0]]} speed={1.3} />
       <NPC look={LOOKS.campWhites} path={[[-30, 18], [-10, 18], [-10, 36]]} speed={1.8} />
@@ -120,7 +122,43 @@ export const TOWN_DECOR = [
   decor('h4', 'Mosque', [40, 34], [9, 5, 9], '#fff9c4', '#2e7d32'),
 ]
 
+const BUNK_PATHS: [number, number][][] = [
+  [[-30, -22], [-14, -22], [-14, -16], [-30, -16]],
+  [[-12, -20], [-12, 0], [-4, 0]],
+  [[-34, -18], [-34, 4], [-24, 4]],
+  [[-20, -20], [6, -20], [6, -28]],
+]
+
+/** Your four bunkmates, wandering between the hostel and the parade ground. */
+function Bunkmates() {
+  const mates = useGame((s) => s.mates)
+  return (
+    <>
+      {mates.map((m, i) => (
+        <NPC key={m.name} look={{ shirt: m.shirt, pants: '#fafafa', cap: '#fafafa', boots: '#fafafa' }} name={m.name} path={BUNK_PATHS[i % BUNK_PATHS.length]} speed={1.2 + i * 0.15} />
+      ))}
+    </>
+  )
+}
+
+/** Your PPA building changes with the kind of posting you got. */
+const PPA_LOOK: Record<PpaKind, BuildingSpec> = {
+  school: TOWN_STATIONS.find((s) => s.id === 'ppa')!.building,
+  hospital: { size: [18, 5, 9], color: '#ffffff', roof: '#c62828' },
+  lga: { size: [16, 5, 9], color: '#fff3e0', roof: '#6d4c41' },
+  bank: { size: [16, 8, 9], color: '#b0bec5', roof: '#1a237e' },
+  ministry: { size: [18, 7, 9], color: '#fff8e1', roof: '#2e7d32' },
+  corporate: { size: [14, 10, 9], color: '#90caf9', roof: '#0d47a1' },
+}
+
+const bossName = (k: PpaKind) => {
+  const b = PPA_WORK[k].boss.replace(/^(The|Your) /, '')
+  return b[0].toUpperCase() + b.slice(1)
+}
+
 export function TownWorld() {
+  const kind = useGame((s) => s.posting?.kind ?? 'school')
+  const buddy = useGame((s) => bestMate(s))
   const all = [...TOWN_STATIONS, ...TOWN_DECOR]
   const trees = useMemo(
     () => scatter(11, 34, 51, (x, z) => inStation(all, x, z) || Math.abs(z) < 7 || Math.abs(x - 10) < 7),
@@ -145,7 +183,7 @@ export function TownWorld() {
       <Fence r={55} color="#a1887f" />
 
       {TOWN_STATIONS.map((st) => (
-        <StationBuilding key={st.id} st={st} />
+        <StationBuilding key={st.id} st={st.id === 'ppa' ? { ...st, building: PPA_LOOK[kind] } : st} />
       ))}
       {TOWN_DECOR.map((st) => (
         <StationBuilding key={st.id} st={st} decor />
@@ -159,9 +197,10 @@ export function TownWorld() {
 
       {trees.map((p, i) => (i % 2 === 0 ? <Palm key={i} pos={p} /> : <Tree key={i} pos={p} s={0.9 + (i % 3) * 0.15} />))}
 
-      <NPC look={LOOKS.official} name="Principal" path={[[22, -19.5], [30, -19.5]]} speed={0.8} />
+      <NPC look={LOOKS.official} name={bossName(kind)} path={[[22, -19.5], [30, -19.5]]} speed={0.8} />
       <NPC look={LOOKS.civil} name="LGI" path={[[-22, 22.5]]} />
       <NPC look={LOOKS.mama} name="Mama Put" path={[[3, 30.5]]} />
+      {buddy && <NPC look={{ shirt: buddy.shirt, pants: '#37474f' }} name={buddy.name} path={[[-6, 22], [8, 22], [8, 18]]} speed={1.1} />}
       <NPC look={LOOKS.khaki} path={[[-30, 8], [30, 8]]} speed={1.5} />
       <NPC look={LOOKS.civil} path={[[16, -40], [16, 40]]} speed={1.7} />
       <NPC look={{ shirt: '#8e24aa', pants: '#4a148c' }} path={[[-46, -30], [-10, -30], [-10, -46]]} />

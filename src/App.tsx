@@ -5,6 +5,7 @@ import { Scene } from './world/Scene'
 import { HUD } from './ui/HUD'
 import { CallUpModal, EndScreen, EventModal, Menu, Phone, PostingModal } from './ui/Screens'
 import { MapView } from './ui/Map'
+import { Minigame } from './ui/Minigame'
 import { useCampmatesSync } from './online/campmates'
 
 export default function App() {
@@ -23,6 +24,7 @@ export default function App() {
       <Phone />
       <MapView />
       <CallUpModal />
+      <Minigame />
     </>
   )
 }

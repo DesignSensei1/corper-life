@@ -2,7 +2,8 @@ import { create } from 'zustand'
 import type { Action, Effect, GameData, GameEvent, Station } from './types'
 import { CAMP_STATIONS, TOWN_STATIONS } from './stations'
 import { assignPPA, randomCallUp } from './states'
-import { rollEvent } from './events'
+import { CDS_EVENT, ROLE_EVENT, TRADE_EVENT, rollEvent } from './events'
+import { PPA_WORK, makeMates, ppaKind } from './people'
 import { ALLAWEE, END_DAY, MIN_PER_SEC, PPA_START_DAY, RENT, dayOf, hourOf, monthOf, naira, weekdayOf, WEEKDAYS } from './time'
 
 const SAVE_KEY = 'corper-life-save-v1'
@@ -25,6 +26,8 @@ interface Runtime {
   eventClock: number
   seenEvents: string[]
   hasSave: boolean
+  /** a mini-game waiting to be played before an action resolves */
+  minigame: { kind: 'drill' | 'manowar'; stationId: string; actionId: string } | null
 }
 
 interface Api {
@@ -32,7 +35,8 @@ interface Api {
   continueGame: () => void
   quitToMenu: () => void
   tick: (realSeconds: number) => void
-  doAction: (stationId: string, actionId: string) => void
+  doAction: (stationId: string, actionId: string, score?: number) => void
+  finishMinigame: (score: number) => void
   chooseEvent: (i: number) => void
   closeEventResult: () => void
   travelToPPA: () => void
@@ -61,6 +65,14 @@ const fresh = (name: string): GameData => ({
   monthsCleared: 0,
   monthsMissed: 0,
   txs: [{ day: 0, label: 'Pocket money from home', amount: 25000 }],
+  platoon: 1 + Math.floor(Math.random() * 10),
+  cup: Array.from({ length: 10 }, () => Math.floor(Math.random() * 6)),
+  mates: makeMates(),
+  role: '',
+  trade: '',
+  gear: 0,
+  bizEarned: 0,
+  cdsKind: '',
   f: {},
 })
 
@@ -85,7 +97,8 @@ function loadSave(): GameData | null {
     const raw = localStorage.getItem(SAVE_KEY)
     if (!raw) return null
     const d = JSON.parse(raw) as GameData
-    return d.phase && d.phase !== 'menu' ? d : null
+    // saves from older versions lack the newer fields
+    return d.phase && d.phase !== 'menu' ? { ...fresh(d.name), ...d } : null
   } catch {
     return null
   }
@@ -115,6 +128,10 @@ function applyEffect(dr: Draft, e: Effect, fallbackTx: string) {
     d.txs = [...d.txs, { day: dayOf(d.minutes), label: e.tx ?? fallbackTx, amount: e.money }].slice(-40)
     if (e.money > 0) note(dr, `+${naira(e.money)} · ${e.tx ?? fallbackTx}`, 'money')
   }
+  if (e.bond) d.mates = d.mates.map((m) => ({ ...m, bond: clamp(m.bond + e.bond!) }))
+  if (e.cup && d.phase === 'camp') d.cup = d.cup.map((p, i) => (i === d.platoon - 1 ? p + e.cup! : p))
+  if (e.f) d.f = { ...d.f, ...e.f }
+  if (e.data) Object.assign(d, e.data)
   if (e.msg) note(dr, e.msg, e.rating && e.rating < 0 ? 'bad' : 'info')
 }
 
@@ -150,9 +167,18 @@ function advance(dr: Draft, mins: number, sleeping = false) {
 
 function onNewDay(dr: Draft, day: number) {
   const d = dr.d
+  if (d.phase === 'camp') {
+    // the other platoons keep scoring too
+    d.cup = d.cup.map((p, i) => p + (i === d.platoon - 1 ? Math.floor(Math.random() * 5) : 8 + Math.floor(Math.random() * 18)))
+    return
+  }
   if (d.phase !== 'ppa' || day <= PPA_START_DAY || (day - PPA_START_DAY) % 7 !== 0) return
   // a service "month" just ended
   const m = (day - PPA_START_DAY) / 7
+  const work = PPA_WORK[ppaKind(d)]
+  if (work.stipend && d.month.ppaDays >= 3) {
+    applyEffect(dr, { money: work.stipend, tx: `PPA stipend (month ${m})` }, 'PPA stipend')
+  }
   if (d.month.cleared) {
     d.monthsCleared++
     applyEffect(dr, { money: ALLAWEE, tx: `Allawee (month ${m})` }, 'Allawee')
@@ -167,8 +193,9 @@ function onNewDay(dr: Draft, day: number) {
     d.phase = 'ended'
     return
   }
-  applyEffect(dr, { money: -RENT, tx: 'Lodge rent' }, 'Lodge rent')
-  note(dr, `Rent of ${naira(RENT)} paid for the month.`, 'info')
+  const rent = d.f.rent ?? RENT
+  applyEffect(dr, { money: -rent, tx: 'Lodge rent' }, 'Lodge rent')
+  note(dr, `Rent of ${naira(rent)} paid for the month.`, 'info')
 }
 
 function inWindow(h: number, [from, to]: [number, number]) {
@@ -180,12 +207,16 @@ export const hourLabel = (h: number) => {
   return `${hh % 12 === 0 ? 12 : hh % 12}${hh < 12 ? 'am' : 'pm'}`
 }
 
+export const costOf = (s: GameData, a: Action) => (typeof a.cost === 'function' ? a.cost(s) : a.cost ?? 0)
+export const labelOf = (s: GameData, a: Action) => a.labelFor?.(s) ?? a.label
+
 export function actionStatus(s: GameData, stationId: string, a: Action): string | null {
   const day = dayOf(s.minutes)
   if (a.weekdays && !a.weekdays.includes(weekdayOf(s.minutes))) return 'Only on ' + a.weekdays.map((w) => WEEKDAYS[w].slice(0, 3)).join(', ')
   if (a.window && !inWindow(hourOf(s.minutes), a.window)) return `Open ${hourLabel(a.window[0])}–${hourLabel(a.window[1])}`
   if (a.oncePerDay && s.f[`done:${stationId}:${a.id}`] === day + 1) return 'Done for today'
-  if (a.cost && s.money < a.cost) return `Need ${naira(a.cost)}`
+  const cost = costOf(s, a)
+  if (cost && s.money < cost) return `Need ${naira(cost)}`
   const extra = a.check?.(s)
   if (extra) return extra
   const eff = typeof a.effect === 'function' ? null : a.effect
@@ -208,6 +239,7 @@ const initial: GameData & Runtime = {
   eventClock: 0,
   seenEvents: [],
   hasSave: !!loadSave(),
+  minigame: null,
 }
 
 export const useGame = create<Store>()((set, get) => {
@@ -224,14 +256,14 @@ export const useGame = create<Store>()((set, get) => {
     ...initial,
 
     newGame: (name) => {
-      set({ ...fresh(name.trim() || 'Corper'), posting: randomCallUp(), messages: [], event: null, eventResult: null, showPosting: false, showCallUp: true, mapOpen: false, eventClock: 0, seenEvents: [] })
+      set({ ...fresh(name.trim() || 'Corper'), posting: randomCallUp(), messages: [], event: null, eventResult: null, showPosting: false, showCallUp: true, mapOpen: false, eventClock: 0, seenEvents: [], minigame: null })
       save(get())
     },
 
     continueGame: () => {
       const d = loadSave()
       if (!d) return
-      set({ ...d, posting: d.posting ?? randomCallUp(), messages: [], event: null, showCallUp: false, mapOpen: false, showPosting: d.phase === 'camp' && !!d.f.postingReady })
+      set({ ...d, posting: d.posting ?? randomCallUp(), messages: [], event: null, minigame: null, showCallUp: false, mapOpen: false, showPosting: d.phase === 'camp' && !!d.f.postingReady })
     },
 
     quitToMenu: () => {
@@ -242,7 +274,7 @@ export const useGame = create<Store>()((set, get) => {
     tick: (secs) => {
       const s = get()
       if (s.phase !== 'camp' && s.phase !== 'ppa') return
-      if (s.event || s.eventResult || s.showPosting || s.showCallUp || s.mapOpen) return
+      if (s.event || s.eventResult || s.showPosting || s.showCallUp || s.mapOpen || s.minigame) return
       const mins = secs * MIN_PER_SEC
       const hourBefore = Math.floor(s.minutes / 60)
       commit((dr) => advance(dr, mins), false)
@@ -257,31 +289,51 @@ export const useGame = create<Store>()((set, get) => {
       } else set({ eventClock: clock })
     },
 
-    doAction: (stationId, actionId) => {
+    doAction: (stationId, actionId, score) => {
       const s = get()
       const st = stationsFor(s.phase).find((x) => x.id === stationId)
       const a = st?.actions.find((x) => x.id === actionId)
-      if (!st || !a || s.event) return
+      if (!st || !a || s.event || s.eventResult || (s.minigame && score === undefined)) return
       const reason = actionStatus(pickData(s), stationId, a)
       if (reason) {
         commit((dr) => note(dr, reason, 'bad'), false)
         return
       }
+      if (a.minigame && score === undefined) {
+        set({ minigame: { kind: a.minigame, stationId, actionId } })
+        return
+      }
+      const firstSaed = actionId === 'saed' && !s.trade
+      const firstCds = actionId === 'cdsmeet' && !s.cdsKind
       commit((dr) => {
+        if (score !== undefined) dr.d.f = { ...dr.d.f, score: Math.round(score) }
         const before = { ...dr.d }
+        const label = labelOf(before, a)
+        const cost = costOf(before, a)
         const dur = typeof a.duration === 'function' ? a.duration(before) : a.duration
         const eff = typeof a.effect === 'function' ? a.effect(before) : a.effect
-        if (a.cost) applyEffect(dr, { money: -a.cost, tx: a.label }, a.label)
+        if (cost) applyEffect(dr, { money: -cost, tx: label }, label)
         if (a.done) Object.assign(dr.d, a.done(dr.d))
         if (a.oncePerDay) dr.d.f = { ...dr.d.f, [`done:${stationId}:${a.id}`]: dayOf(before.minutes) + 1 }
         advance(dr, dur, a.sleeping)
-        applyEffect(dr, eff, a.label)
-        if (!eff.msg && !eff.money) note(dr, `${a.label} ✓`, 'good')
+        applyEffect(dr, eff, label)
+        if (!eff.msg && !eff.money) note(dr, `${label} ✓`, 'good')
       })
       if (actionId === 'posting') {
-        set({ posting: assignPPA(get().posting), showPosting: true })
+        const g = get()
+        set({ posting: assignPPA(g.posting, g.rating, g.role), showPosting: true })
         save(get())
       }
+      if (actionId === 'swear' && !get().role) set({ event: ROLE_EVENT })
+      if (firstSaed) set({ event: TRADE_EVENT })
+      if (firstCds) set({ event: CDS_EVENT })
+    },
+
+    finishMinigame: (score) => {
+      const mg = get().minigame
+      if (!mg) return
+      set({ minigame: null })
+      get().doAction(mg.stationId, mg.actionId, score)
     },
 
     chooseEvent: (i) => {
@@ -290,7 +342,8 @@ export const useGame = create<Store>()((set, get) => {
       let text = ''
       commit((dr) => {
         const eff = ev.choices[i].resolve(dr.d)
-        applyEffect(dr, { ...eff, msg: undefined }, eff.tx ?? ev.title)
+        applyEffect(dr, { ...eff, msg: undefined }, eff.tx ?? (typeof ev.title === 'string' ? ev.title : 'Event'))
+        if (ev.story) dr.d.f = { ...dr.d.f, ['ev:' + ev.id]: 1 }
         text = eff.msg ?? ''
       })
       set({ event: null, eventResult: text || null })
@@ -310,7 +363,7 @@ export const useGame = create<Store>()((set, get) => {
         applyEffect(dr, { money: -RENT, tx: 'Lodge rent' }, 'Lodge rent')
         note(dr, `Welcome to ${d.posting?.lga}! Month ${monthOf(d.minutes)} begins. Work at your PPA, attend CDS on Thursday, then get cleared.`, 'good')
       })
-      set({ showPosting: false, nearby: null })
+      set({ showPosting: false, nearby: null, event: get().trade ? null : TRADE_EVENT })
     },
 
     setNearby: (id) => {
