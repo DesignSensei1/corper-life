@@ -26,6 +26,11 @@ export const useSound = create<{ muted: boolean; toggle: () => void }>()((set, g
     }
     if (muted) stopAll()
     set({ muted })
+    if (!muted) {
+      // play a short call so the player hears that sound is on (this runs inside the tap)
+      unlockSound()
+      bugle(true)
+    }
   },
 }))
 
@@ -54,10 +59,40 @@ function audio(): { c: AudioContext; out: GainNode } | null {
   return { c: ctx, out: master! }
 }
 
-/** Call from a click or key press so browsers allow sound to play later. */
+let unlocked = false
+let speechPrimed = false
+
+/**
+ * Call from a tap, click or key press. iPhones only allow sound that was first started
+ * inside a user gesture, and play Web Audio through the silent switch only as "playback".
+ */
 export function unlockSound() {
-  audio()
-  if (typeof speechSynthesis !== 'undefined' && !useSound.getState().muted) speechSynthesis.getVoices()
+  if (useSound.getState().muted) return
+  const nav = navigator as Navigator & { audioSession?: { type: string } }
+  try {
+    if (nav.audioSession) nav.audioSession.type = 'playback'
+  } catch {
+    /* older browsers */
+  }
+  const a = audio()
+  if (a && !unlocked) {
+    // a one-sample silent buffer started inside the gesture unlocks the context on iOS
+    const src = a.c.createBufferSource()
+    src.buffer = a.c.createBuffer(1, 1, 22050)
+    src.connect(a.c.destination)
+    src.start(0)
+    if (a.c.state === 'running') unlocked = true
+  }
+  if (typeof speechSynthesis !== 'undefined' && typeof SpeechSynthesisUtterance !== 'undefined') {
+    speechSynthesis.getVoices()
+    if (!speechPrimed) {
+      // iOS ignores speech that wasn't first started from a tap, so say nothing once now
+      const u = new SpeechSynthesisUtterance(' ')
+      u.volume = 0
+      speechSynthesis.speak(u)
+      speechPrimed = true
+    }
+  }
 }
 
 function stopAll() {
@@ -111,13 +146,13 @@ const REVEILLE: [number, number][] = [
 
 let bugleUntil = 0
 
-/** Play the morning bugle. */
-export function bugle() {
+/** Play the morning bugle (or just its opening phrase). */
+export function bugle(short = false) {
   const a = audio()
   if (!a || a.c.currentTime < bugleUntil) return
   const beat = 0.34
   let t = a.c.currentTime + 0.05
-  for (const [f, b] of REVEILLE) {
+  for (const [f, b] of short ? REVEILLE.slice(0, 8) : REVEILLE) {
     brass(a.c, a.out, f, t, b * beat * 0.92, 0.22)
     t += b * beat
   }
@@ -183,8 +218,12 @@ export function command(text: string, vol = 1) {
   u.rate = 1.25
   u.pitch = 0.4
   u.volume = Math.max(0, Math.min(1, vol))
-  speechSynthesis.cancel()
-  speechSynthesis.speak(u)
+  u.lang = v?.lang ?? 'en-GB'
+  if (speechSynthesis.speaking || speechSynthesis.pending) {
+    // Safari drops an utterance queued in the same tick as cancel()
+    speechSynthesis.cancel()
+    setTimeout(() => speechSynthesis.speak(u), 40)
+  } else speechSynthesis.speak(u)
 }
 
 /** Distant platoons marching: "Left, left, left right left!" */

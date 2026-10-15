@@ -11,10 +11,12 @@ export function useCampSounds() {
   useEffect(() => {
     // browsers only allow sound after the player has clicked or pressed a key
     const unlock = () => unlockSound()
-    window.addEventListener('pointerdown', unlock)
-    window.addEventListener('keydown', unlock)
+    const events = ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown'] as const
+    for (const e of events) window.addEventListener(e, unlock, { capture: true, passive: true })
 
     const unsub = useGame.subscribe((s, prev) => {
+      // the bugle greets you as you walk through the camp gate
+      if (prev.showCallUp && !s.showCallUp && s.phase === 'camp') bugle()
       if (s.phase !== 'camp' || prev.phase !== 'camp' || s.minutes <= prev.minutes) return
       const bugleAt = dayOf(s.minutes) * 1440 + 5 * 60
       if (prev.minutes < bugleAt && s.minutes >= bugleAt) bugle()
@@ -31,8 +33,7 @@ export function useCampSounds() {
     }, 5000)
 
     return () => {
-      window.removeEventListener('pointerdown', unlock)
-      window.removeEventListener('keydown', unlock)
+      for (const e of events) window.removeEventListener(e, unlock, { capture: true })
       unsub()
       clearInterval(timer)
     }
