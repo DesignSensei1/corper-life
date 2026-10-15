@@ -215,7 +215,7 @@ function STORIES(): GameEvent[] {
       story: true,
       title: 'A word in the office',
       text: (s) => `${PPA_WORK[ppaKind(s)].boss} calls you in. "Your service year is almost over. We would like to keep you after POP. Will you stay?"`,
-      when: (s) => ppaMonth(s) >= 4 && seen(s, 'boss2') && (s.f.boss ?? 0) >= 30,
+      when: (s) => ppaMonth(s) >= 9 && seen(s, 'boss2') && (s.f.boss ?? 0) >= 30,
       choices: [
         { label: 'Yes, I will stay', resolve: () => ({ mood: 25, f: { offer: 1 }, msg: 'You have a job waiting after service! 🎉' }) },
         { label: 'I have other plans', resolve: () => ({ mood: 5, f: { offer: 0 }, msg: 'They said the door is always open.' }) },

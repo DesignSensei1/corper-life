@@ -9,8 +9,11 @@ export interface Ending {
   badges: string[]
 }
 
-export const BIZ_GOAL = 250000
-export const JAPA_GOAL = 450000
+export const BIZ_GOAL = 750000
+export const JAPA_GOAL = 1200000
+
+/** Wallet plus bank savings. */
+export const netWorth = (s: GameData) => s.money + (s.f.savings ?? 0)
 
 /** Your life after POP depends on your record, your money and the people you met. */
 export function ending(s: GameData): Ending {
@@ -20,12 +23,7 @@ export function ending(s: GameData): Ending {
   const close = s.mates.filter((m) => m.bond >= 60).map((m) => m.name)
   if (close.length) badges.push(`🤝 Friends for life: ${close.join(', ')}`)
 
-  if (s.monthsMissed > 0)
-    return {
-      title: 'Service year extended',
-      text: `You missed clearance for ${s.monthsMissed} month(s). You must serve extra months before you get your certificate.`,
-      badges,
-    }
+  if (s.monthsMissed > 0) badges.push(`⏳ Served ${s.monthsMissed} extension month${s.monthsMissed === 1 ? '' : 's'} for missed clearance`)
 
   const ppa = s.posting?.ppa ?? 'your PPA'
   // a boss who rates you highly makes an offer even if you never had "the talk"
@@ -41,8 +39,8 @@ export function ending(s: GameData): Ending {
       badges,
     }
 
-  if (s.money >= JAPA_GOAL)
-    return { title: '✈️ Japa!', text: `You saved ${naira(s.money)}: enough for IELTS, a visa and a flight. See you abroad!`, badges }
+  if (netWorth(s) >= JAPA_GOAL)
+    return { title: '✈️ Japa!', text: `You saved ${naira(netWorth(s))}: enough for IELTS, a visa and a flight. See you abroad!`, badges }
 
   return { title: '🎓 Passing Out Parade!', text: 'You collected your Certificate of National Service. On to the labour market!', badges }
 }

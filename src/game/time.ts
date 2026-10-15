@@ -1,8 +1,9 @@
 // Game time is counted in minutes since Monday 00:00 of camp week.
 export const MIN_PER_SEC = 2 // one real second = two game minutes
 export const PPA_START_DAY = 7 // service year starts the Monday after camp
-export const SERVICE_MONTHS = 4 // each in-game "month" is one week
-export const END_DAY = PPA_START_DAY + SERVICE_MONTHS * 7
+export const SERVICE_MONTHS = 12 // each in-game "month" is one week
+/** Saves made before the 12-month service year carry an older calendar number. */
+export const CALENDAR = 12
 export const ALLAWEE = 77000
 export const RENT = 12000
 
@@ -12,6 +13,11 @@ export const dayOf = (m: number) => Math.floor(m / 1440)
 export const hourOf = (m: number) => (m % 1440) / 60
 export const weekdayOf = (m: number) => dayOf(m) % 7
 export const monthOf = (m: number) => Math.floor((dayOf(m) - PPA_START_DAY) / 7) + 1
+
+/** "Month 3 of 12"; every missed clearance adds an extension month to the total. */
+export function monthLabel(m: number, missed: number) {
+  return `Month ${monthOf(m)} of ${SERVICE_MONTHS + missed}${missed ? ' (extended)' : ''}`
+}
 
 export function fmtTime(m: number) {
   const mins = Math.floor(m % 1440)

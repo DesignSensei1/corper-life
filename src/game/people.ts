@@ -4,7 +4,7 @@ export const pick = <T,>(a: T[]) => a[Math.floor(Math.random() * a.length)]
 
 // ---------------------------------------------------------------- BUNKMATES
 
-const FIRST = ['Tobi', 'Ngozi', 'Musa', 'Blessing', 'Emeka', 'Aisha', 'Tunde', 'Chioma', 'Ibrahim', 'Funke', 'Uche', 'Halima', 'Segun', 'Amaka', 'Yusuf', 'Ese']
+export const FIRST = ['Tobi', 'Ngozi', 'Musa', 'Blessing', 'Emeka', 'Aisha', 'Tunde', 'Chioma', 'Ibrahim', 'Funke', 'Uche', 'Halima', 'Segun', 'Amaka', 'Yusuf', 'Ese']
 const FROM = ['Lagos', 'Kano', 'Enugu', 'Rivers', 'Oyo', 'Kaduna', 'Anambra', 'Delta', 'Plateau', 'Ogun', 'Benue', 'Edo']
 const SHIRTS = ['#ef5350', '#42a5f5', '#ab47bc', '#ffa726']
 

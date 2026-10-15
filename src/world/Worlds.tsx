@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { useGame } from '../game/store'
+import { hourOf, weekdayOf } from '../game/time'
 import { CAMP_STATIONS, TOWN_STATIONS } from '../game/stations'
 import type { BuildingSpec, PpaKind, Station } from '../game/types'
 import { PPA_WORK, bestMate } from '../game/people'
@@ -115,12 +116,50 @@ export function CampWorld() {
 
 // ------------------------------------------------------------------ TOWN
 
-export const TOWN_DECOR = [
-  decor('h1', 'Church', [-40, -14], [9, 6, 10], '#fafafa', '#90a4ae'),
-  decor('h2', 'Pharmacy', [-12, -10], [7, 3.5, 5], '#e0f7fa', '#00838f'),
-  decor('h3', 'Bank', [-8, 12], [10, 5, 7], '#cfd8dc', '#1a237e'),
-  decor('h4', 'Mosque', [40, 34], [9, 5, 9], '#fff9c4', '#2e7d32'),
-]
+export const TOWN_DECOR = [decor('h2', 'Pharmacy', [-12, -10], [7, 3.5, 5], '#e0f7fa', '#00838f')]
+
+const GOWNS = ['#ffffff', '#f8bbd0', '#fff59d', '#b3e5fc', '#c5e1a5', '#ffccbc', '#d1c4e9']
+const dress = (i: number) => ({ shirt: GOWNS[i % GOWNS.length], pants: GOWNS[(i + 3) % GOWNS.length] })
+const kaftan = (i: number) => ({ shirt: ['#ffffff', '#eceff1', '#d7ccc8', '#b2dfdb'][i % 4], pants: ['#ffffff', '#eceff1', '#d7ccc8', '#b2dfdb'][i % 4], cap: '#fafafa' })
+
+/** Customers at the bank, worshippers at church on Sunday and at the mosque on Friday. */
+function TownLife() {
+  const wd = useGame((s) => weekdayOf(s.minutes))
+  const h = useGame((s) => Math.floor(hourOf(s.minutes)))
+  const bankOpen = wd <= 4 && h >= 8 && h < 16
+  const sunday = wd === 6 && h >= 7 && h < 12
+  const fellowship = (wd === 2 && h >= 17 && h < 20) || (wd === 5 && h >= 16 && h < 19)
+  const jumat = wd === 4 && h >= 12 && h < 15
+  const prayerTime = [5, 13, 16, 19].includes(h)
+  return (
+    <>
+      {/* bank: security man always, a queue while the banking hall is open */}
+      <NPC look={{ shirt: '#263238', pants: '#263238', cap: '#263238' }} name="Bank security" path={[[-12.5, 16.5]]} />
+      {bankOpen && (
+        <>
+          <NPC look={LOOKS.official} name="Teller" path={[[-8, 16.2]]} />
+          {[0, 1, 2, 3].map((i) => (
+            <NPC key={i} look={i === 2 ? LOOKS.khaki : dress(i)} path={[[-4 + i * 1.3, 17.5 + i * 0.4]]} />
+          ))}
+        </>
+      )}
+      <NPC look={LOOKS.civil} path={[[-2, 20], [-6, 20], [-6, 17.6]]} speed={1} />
+
+      {/* church */}
+      {(sunday || fellowship) && <NPC look={{ shirt: '#212121', pants: '#212121' }} name="Pastor" path={[[-40, -7.8]]} />}
+      {sunday &&
+        Array.from({ length: 10 }, (_, i) => <NPC key={i} look={i % 4 === 1 ? LOOKS.khaki : dress(i)} path={[[-45 + (i % 5) * 2.4, -5 + Math.floor(i / 5) * 1.6]]} />)}
+      {sunday && <NPC look={dress(5)} path={[[-20, -4], [-36, -4], [-36, -6]]} speed={1.1} />}
+      {fellowship && [0, 1, 2].map((i) => <NPC key={i} look={LOOKS.khaki} path={[[-43 + i * 3, -5.5]]} />)}
+
+      {/* mosque */}
+      <NPC look={kaftan(0)} name="Imam" path={[[40, 39.6]]} />
+      {jumat &&
+        Array.from({ length: 12 }, (_, i) => <NPC key={i} look={i % 5 === 2 ? LOOKS.khaki : kaftan(i)} path={[[35 + (i % 6) * 2, 42 + Math.floor(i / 6) * 1.8]]} />)}
+      {(jumat || prayerTime) && <NPC look={kaftan(3)} path={[[16, 44], [36, 44], [36, 41]]} speed={1.1} />}
+    </>
+  )
+}
 
 const BUNK_PATHS: [number, number][][] = [
   [[-30, -22], [-14, -22], [-14, -16], [-30, -16]],
@@ -188,6 +227,7 @@ export function TownWorld() {
       {TOWN_DECOR.map((st) => (
         <StationBuilding key={st.id} st={st} decor />
       ))}
+      <TownLife />
 
       <Car pos={[-14, 6]} color="#c62828" rot={Math.PI / 2} />
       <Car pos={[20, -6]} color="#1565c0" rot={Math.PI / 2} />

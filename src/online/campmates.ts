@@ -26,14 +26,40 @@ export interface Campmate {
   last_seen: string
 }
 
+/** A chat line from a real player in the same state. Broadcast only: never stored. */
+export interface LiveMsg {
+  id: string
+  name: string
+  text: string
+  at: number
+  me?: boolean
+}
+
 interface OnlineState {
   status: 'off' | 'connecting' | 'live' | 'error'
   mates: Campmate[]
   /** ids of players with the game open right now */
   here: string[]
+  chat: LiveMsg[]
 }
 
-export const useOnline = create<OnlineState>()(() => ({ status: ONLINE_ENABLED ? 'connecting' : 'off', mates: [], here: [] }))
+export const useOnline = create<OnlineState>()(() => ({ status: ONLINE_ENABLED ? 'connecting' : 'off', mates: [], here: [], chat: [] }))
+
+let liveChannel: RealtimeChannel | null = null
+let lastSent = 0
+
+const pushLive = (m: LiveMsg) => useOnline.setState({ chat: [...useOnline.getState().chat, m].slice(-50) })
+
+/** Send a chat line to everyone playing in your state right now. Returns false when it couldn't be sent. */
+export function sendLiveChat(name: string, text: string): boolean {
+  const t = text.trim().slice(0, 200)
+  if (!t || !liveChannel || Date.now() - lastSent < 2000) return false
+  lastSent = Date.now()
+  const m: LiveMsg = { id: playerId(), name: name.slice(0, 30), text: t, at: Date.now() }
+  liveChannel.send({ type: 'broadcast', event: 'chat', payload: m })
+  pushLive({ ...m, me: true })
+  return true
+}
 
 const newId = () => (crypto.randomUUID ? crypto.randomUUID() : '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, (c) => (+c ^ (Math.random() * 16) >> (+c / 4)).toString(16)))
 
@@ -94,6 +120,11 @@ export function useCampmatesSync() {
       // live presence: who has the game open right now in this camp
       channel = sb.channel(`camp:${state}`, { config: { presence: { key: me } } })
       channel
+        .on('broadcast', { event: 'chat' }, ({ payload }) => {
+          const m = payload as LiveMsg
+          if (typeof m?.text !== 'string' || typeof m?.name !== 'string' || m.id === me) return
+          pushLive({ id: String(m.id), name: m.name.slice(0, 30), text: m.text.slice(0, 200), at: Date.now() })
+        })
         .on('presence', { event: 'sync' }, () => {
           const ids = Object.keys(channel!.presenceState())
           useOnline.setState({ here: ids })
@@ -101,7 +132,10 @@ export function useCampmatesSync() {
           if (ids.some((id) => id !== me && !useOnline.getState().mates.some((m) => m.id === id))) safeBeat()
         })
         .subscribe((st) => {
-          if (st === 'SUBSCRIBED') channel?.track({ name })
+          if (st === 'SUBSCRIBED') {
+            channel?.track({ name })
+            liveChannel = channel
+          }
         })
     }
 
@@ -110,6 +144,7 @@ export function useCampmatesSync() {
     return () => {
       stopped = true
       clearInterval(timer)
+      liveChannel = null
       if (channel) client?.then((sb) => sb.removeChannel(channel!))
       useOnline.setState({ here: [] })
     }

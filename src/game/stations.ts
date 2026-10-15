@@ -1,6 +1,6 @@
 import type { Action, Effect, GameData, Station } from './types'
 import { WEEKDAYS, dayOf, fmtTime, hourOf, minutesUntilHour, monthOf, naira, weekdayOf } from './time'
-import { BIZ_GOAL } from './endings'
+import { BIZ_GOAL, netWorth } from './endings'
 import { CDS, GEAR_COST, PPA_WORK, ROLES, TRADES, bestMate, bizIncome, isOffice, ppaKind, pick } from './people'
 
 export { pick }
@@ -622,6 +622,151 @@ export const TOWN_STATIONS: Station[] = [
       { id: 'fifa', label: 'Play FIFA', cost: 500, window: [10, 23], duration: 60, effect: { mood: 10 } },
     ],
   },
+  {
+    id: 'bank',
+    name: 'Bank',
+    pos: [-8, 12],
+    building: { size: [10, 5, 7], color: '#cfd8dc', roof: '#1a237e' },
+    actions: [
+      {
+        id: 'account',
+        label: 'Open a savings account',
+        weekdays: [0, 1, 2, 3, 4],
+        window: [8, 16],
+        duration: 60,
+        hidden: (s) => !!flag(s, 'bankAcct'),
+        effect: { energy: -6, mood: 3, f: { bankAcct: 1 }, msg: 'Three forms, a passport photo and a BVN check later, your savings account is open. It pays 1% interest every month.' },
+      },
+      ...[10000, 50000].map(
+        (amt): Action => ({
+          id: `dep${amt}`,
+          label: `Deposit ${naira(amt)} into savings`,
+          weekdays: [0, 1, 2, 3, 4],
+          window: [8, 16],
+          cost: amt,
+          duration: 30,
+          hidden: (s) => !flag(s, 'bankAcct'),
+          effect: (s) => ({ msg: `Saved! Your savings balance is now ${naira(flag(s, 'savings') + amt)}. Thieves can't touch it here.` }),
+          done: (s) => ({ f: { ...s.f, savings: flag(s, 'savings') + amt } }),
+        }),
+      ),
+      {
+        id: 'withdraw',
+        label: 'Withdraw all your savings',
+        labelFor: (s) => `Withdraw your savings (${naira(flag(s, 'savings'))})`,
+        weekdays: [0, 1, 2, 3, 4],
+        window: [8, 16],
+        duration: 30,
+        hidden: (s) => !flag(s, 'bankAcct'),
+        check: (s) => (flag(s, 'savings') > 0 ? null : 'Your savings account is empty'),
+        effect: (s) => ({ money: flag(s, 'savings'), tx: 'Savings withdrawal', f: { savings: 0 } }),
+      },
+      {
+        id: 'atm',
+        label: 'Queue at the ATM',
+        duration: 40,
+        window: [6, 22],
+        oncePerDay: true,
+        effect: () =>
+          pick<Effect>([
+            { mood: -4, energy: -4, msg: '"Network failure." Forty minutes in the sun for nothing.' },
+            { mood: 3, msg: 'The ATM paid! The queue clapped for the man in front of you.' },
+            { mood: 6, bond: 1, msg: 'You gisted with two corpers in the queue and swapped numbers.' },
+            { mood: -6, msg: 'The ATM swallowed the card of the woman in front of you. Everyone groaned.' },
+          ]),
+      },
+      {
+        id: 'forms',
+        label: 'Help customers fill bank forms',
+        weekdays: [0, 1, 2, 3, 4],
+        window: [9, 15],
+        oncePerDay: true,
+        duration: 90,
+        effect: () => ({ energy: -8, mood: 6, rating: 1, money: 1500, tx: 'Tips from bank customers', msg: 'You helped mamas and babas fill deposit slips. They blessed you and pressed small money into your hand.' }),
+      },
+    ],
+  },
+  {
+    id: 'church',
+    name: 'Church',
+    pos: [-40, -14],
+    building: { size: [9, 6, 10], color: '#fafafa', roof: '#90a4ae' },
+    actions: [
+      {
+        id: 'service',
+        label: `Attend Sunday service (offering ${naira(500)})`,
+        weekdays: [6],
+        window: [7, 12],
+        oncePerDay: true,
+        cost: 500,
+        duration: 180,
+        effect: (s) =>
+          Math.random() < 0.3
+            ? { mood: 20, energy: -6, rating: 1, f: { food: flag(s, 'food') + 2 }, msg: 'The pastor called all corpers forward for prayers, and the women’s guild shared foodstuff with you (+2 meals).' }
+            : { mood: 16, energy: -6, rating: 1, msg: pick(['The choir lifted the roof. You danced to the front during thanksgiving.', 'The sermon was on patience. Your landlord should have been there.', 'Three hours, two offerings, one long announcement. You feel refreshed.']) },
+        done: (s) => ({ f: { ...s.f, church: flag(s, 'church') + 1 } }),
+      },
+      {
+        id: 'nccf',
+        label: "Corpers' fellowship (NCCF)",
+        weekdays: [2],
+        window: [17, 20],
+        oncePerDay: true,
+        duration: 90,
+        effect: { mood: 10, bond: 2, energy: -4, msg: 'Praise, prayers and gist with Christian corpers. Someone shared a job link for after service.' },
+      },
+      {
+        id: 'choir',
+        label: 'Choir practice',
+        weekdays: [5],
+        window: [16, 19],
+        oncePerDay: true,
+        duration: 120,
+        effect: { mood: 9, skills: 1, energy: -6, msg: 'The choir master made you lead the second song. Not bad at all!' },
+      },
+      { id: 'pray', label: 'Pray quietly', window: [6, 20], oncePerDay: true, duration: 20, effect: { mood: 5, msg: 'A few quiet minutes. You feel lighter.' } },
+    ],
+  },
+  {
+    id: 'mosque',
+    name: 'Central Mosque',
+    pos: [40, 34],
+    building: { size: [9, 5, 9], color: '#fff9c4', roof: '#2e7d32' },
+    actions: [
+      {
+        id: 'jumat',
+        label: "Jumu'ah prayer",
+        weekdays: [4],
+        window: [12, 15],
+        oncePerDay: true,
+        duration: 90,
+        effect: () =>
+          Math.random() < 0.35
+            ? { mood: 18, hunger: 30, rating: 1, msg: "After Jumu'ah, a wealthy alhaji shared rice and meat with everyone, corpers first!" }
+            : { mood: 16, rating: 1, energy: -4, msg: pick(['The Imam prayed for all corpers serving in the town.', 'The mosque was so full people prayed outside on mats.', 'The khutbah was on honesty and hard work. You nodded all through.']) },
+        done: (s) => ({ f: { ...s.f, mosque: flag(s, 'mosque') + 1 } }),
+      },
+      { id: 'salat', label: 'Pray (salat)', window: [5, 21], oncePerDay: true, duration: 20, effect: { mood: 5, msg: 'You prayed and sat for a while in the cool of the mosque.' } },
+      {
+        id: 'halaqah',
+        label: "Corpers' halaqah (MSSN)",
+        weekdays: [6],
+        window: [16, 19],
+        oncePerDay: true,
+        duration: 90,
+        effect: { mood: 10, bond: 2, energy: -4, msg: 'Muslim corpers met for lessons and kunu. You planned a free tutorial for SS3 students.' },
+      },
+      {
+        id: 'madrasa',
+        label: 'Teach at the madrasa',
+        weekdays: [5],
+        window: [9, 12],
+        oncePerDay: true,
+        duration: 120,
+        effect: { energy: -10, mood: 7, rating: 2, skills: 1, msg: 'The children recited beautifully. The Imam thanked you in front of everyone.' },
+      },
+    ],
+  },
 ]
 
 export function objectives(s: GameData): { text: string; done: boolean }[] {
@@ -645,7 +790,7 @@ export function objectives(s: GameData): { text: string; done: boolean }[] {
       ...(isOffice(ppaKind(s)) ? [{ text: 'Buy a corporate outfit for the office', done: !!flag(s, 'outfit') }] : []),
       { text: `Finish the ${s.cdsKind ? CDS[s.cdsKind].title.toLowerCase() : 'CDS project'} (${s.project}%)`, done: s.project >= 100 },
       ...(s.trade ? [{ text: `Grow your ${TRADES[s.trade].title.toLowerCase()} business (${naira(s.bizEarned)} of ${naira(BIZ_GOAL)})`, done: s.bizEarned >= BIZ_GOAL }] : []),
-      { text: `Save money for after service (${naira(s.money)})`, done: s.money >= 100000 },
+      { text: `Save money for after service (${naira(netWorth(s))})`, done: netWorth(s) >= 300000 },
     ]
   }
   return []

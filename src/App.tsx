@@ -7,11 +7,13 @@ import { CallUpModal, EndScreen, EventModal, Menu, Phone, PostingModal } from '.
 import { MapView } from './ui/Map'
 import { Minigame } from './ui/Minigame'
 import { useCampmatesSync } from './online/campmates'
+import { useCampSounds } from './ui/useCampSounds'
 
 export default function App() {
   const phase = useGame((s) => s.phase)
   useEffect(() => bindKeyboard(), [])
   useCampmatesSync()
+  useCampSounds()
 
   if (phase === 'menu') return <Menu />
   if (phase === 'ended') return <EndScreen />

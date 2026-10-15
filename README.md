@@ -25,7 +25,10 @@ npm run build    # production build in dist/, ready for Vercel or Netlify
 - The journey: pick your state of residence, find out if you're a NEPO baby (big wallet, can fly or take the bus) or a LAPO baby (average wallet, bus only), then travel to camp by plane, day bus or the cheaper, riskier night bus.
 - Registration: a timed mini-game where you hand the officer each document they ask for. Run out of time and you're told to come back in 2 hours.
 - Camp (Mon–Thu): register, get sworn in, attend drills, lectures and SAED, then collect your posting letter.
-- PPA (4 months): each month work 3 days at your PPA, attend CDS on Thursday, then get cleared by the LGI on Friday or Saturday. Allawee (₦77,000) pays on Monday if you were cleared. Rent comes out monthly.
+- PPA (12 months): each month work 3 days at your PPA, attend CDS on Thursday, then get cleared by the LGI on Friday or Saturday. Allawee (₦77,000) pays on Monday if you were cleared. Rent comes out monthly.
+- Missed clearance: no allawee that month and one extension month is added to the end of your service. You pass out once you've cleared 12 months. Saves from the old 4-month service year carry on into month 5.
+- Town life: open a savings account at the bank (1% interest a month), attend Sunday service or NCCF at the church, Jumu'ah or the corpers' halaqah at the mosque. Your LGA corpers' group chat lives in the phone's Chat tab.
+- Sound: a synthesized bugle wakes camp at 5am, and soldiers call "Left! Right!" during drills (browser speech voice). Mute with the 🔊 button.
 - Side hustles: POS stand at the market and private lessons at the estate. SAED skills raise what they pay.
 - Bunkmates and platoon: you share Hostel B with 4 named bunkmates. Doing things together (drills, gist, football, sneaking out) raises your bond. Your closest one gets posted to your LGA.
 - Camp cup: platoons score points all week from drills, Man O' War, football, social nights and competitions. The winner is announced with the posting letters.

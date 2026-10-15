@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useGame } from '../game/store'
 import { Documents } from './Documents'
+import { command, stamp, unlockSound } from '../game/sound'
 
 interface Move {
   id: string
@@ -80,7 +81,10 @@ function Round({ kind }: { kind: 'drill' | 'manowar' }) {
     (ok: boolean) => {
       if (answered.current) return
       answered.current = true
-      if (ok) setHits((h) => h + 1)
+      if (ok) {
+        setHits((h) => h + 1)
+        stamp()
+      }
       setFlash(ok ? 'hit' : 'miss')
       setTimeout(() => {
         setFlash(null)
@@ -94,12 +98,23 @@ function Round({ kind }: { kind: 'drill' | 'manowar' }) {
     [g.rounds],
   )
 
+  // the soldier calls each step out loud
+  useEffect(() => {
+    if (phase !== 'play' || kind !== 'drill' || !seq[round]) return
+    command(seq[round].text)
+  }, [phase, round, kind, seq])
+
   // a round times out if you don't answer
   useEffect(() => {
     if (phase !== 'play') return
     const t = setTimeout(() => next(false), ms)
     return () => clearTimeout(t)
   }, [phase, round, ms, next])
+
+  const start = useCallback(() => {
+    unlockSound()
+    setPhase('play')
+  }, [])
 
   const press = useCallback(
     (id: string) => {
@@ -113,7 +128,7 @@ function Round({ kind }: { kind: 'drill' | 'manowar' }) {
     const onKey = (e: KeyboardEvent) => {
       if (phase === 'intro' && (e.code === 'Enter' || e.code === 'Space')) {
         e.preventDefault()
-        setPhase('play')
+        start()
         return
       }
       if (phase === 'done' && e.code === 'Enter') {
@@ -129,7 +144,7 @@ function Round({ kind }: { kind: 'drill' | 'manowar' }) {
     }
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
-  }, [phase, g, press, finish, score])
+  }, [phase, g, press, finish, score, start])
 
   return (
     <div className="overlay">
@@ -139,7 +154,7 @@ function Round({ kind }: { kind: 'drill' | 'manowar' }) {
           <>
             <p>{g.intro}</p>
             <p className="tiny muted">Keys: {g.moves.map((m) => m.label).join(' · ')} (or tap the buttons)</p>
-            <button className="primary" onClick={() => setPhase('play')}>
+            <button className="primary" onClick={start}>
               Start
             </button>
           </>
