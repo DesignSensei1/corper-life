@@ -82,7 +82,7 @@ button { font: inherit; cursor: pointer; }
 .posting > div { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 8px; }
 
 /* phone */
-.phone { background: #111; border-radius: 34px; padding: 14px; width: min(360px, 100%); min-width: 0; height: min(640px, 92vh); height: min(640px, calc(100dvh - 24px)); display: flex; flex-direction: column; gap: 10px; box-shadow: 0 16px 50px rgba(0, 0, 0, 0.5); }
+.phone { background: #111; border-radius: 34px; padding: 14px; width: min(360px, 100%, calc(100vw - 32px)); max-width: calc(100vw - 32px); min-width: 0; height: min(640px, 92vh); height: min(640px, calc(100dvh - 24px)); display: flex; flex-direction: column; gap: 10px; box-shadow: 0 16px 50px rgba(0, 0, 0, 0.5); }
 .phone-notch { width: 110px; height: 18px; background: #000; border-radius: 0 0 12px 12px; margin: -14px auto 0; }
 .tabs { display: flex; gap: 4px; }
 .tab { position: relative; flex: 1; border: none; background: #2a2a2a; color: #ddd; border-radius: 10px; padding: 8px 2px; font-size: 12px; }
@@ -182,16 +182,16 @@ button { font: inherit; cursor: pointer; }
 
 .icon-btn .badge { position: absolute; top: -4px; right: -4px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: #e53935; color: #fff; font-size: 11px; font-weight: 700; line-height: 18px; }
 .tab-dot { position: absolute; top: -5px; right: -3px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: #e53935; color: #fff; font-size: 10px; font-weight: 700; line-height: 16px; }
-.chat { display: flex; flex-direction: column; gap: 8px; height: 100%; min-height: 0; }
+.chat { min-width: 0; overflow: hidden; display: flex; flex-direction: column; gap: 8px; height: 100%; min-height: 0; }
 .chat-rooms { display: flex; gap: 4px; }
 .chat-rooms .tab { font-size: 11px; }
 .chat-log { flex: 1; min-height: 160px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding: 8px; border-radius: 12px; background: #e5ddd5; }
-.bubble { align-self: flex-start; max-width: 85%; background: #fff; color: #222; border-radius: 10px 10px 10px 2px; padding: 6px 9px; font-size: 13px; display: flex; flex-direction: column; gap: 2px; box-shadow: 0 1px 1px rgba(0, 0, 0, 0.12); }
+.bubble { overflow-wrap: anywhere; align-self: flex-start; max-width: 85%; background: #fff; color: #222; border-radius: 10px 10px 10px 2px; padding: 6px 9px; font-size: 13px; display: flex; flex-direction: column; gap: 2px; box-shadow: 0 1px 1px rgba(0, 0, 0, 0.12); }
 .bubble.me { align-self: flex-end; background: #dcf8c6; border-radius: 10px 10px 2px 10px; }
 .bubble b { font-size: 12px; }
 .bubble small { align-self: flex-end; font-size: 10px; color: #888; }
-.chat-quick { display: flex; min-width: 0; max-width: 100%; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
-.chat-quick button { flex-shrink: 0; font-size: 12px; padding: 6px 10px; border-radius: 16px; white-space: nowrap; }
+.chat-quick { display: flex; flex-wrap: wrap; min-width: 0; max-width: 100%; gap: 6px; max-height: 64px; overflow-y: auto; }
+.chat-quick button { font-size: 12px; padding: 5px 10px; border-radius: 16px; max-width: 100%; }
 .chat-input { display: flex; gap: 6px; }
 .chat-input input { flex: 1; min-width: 0; border-radius: 18px; border: 2px solid #ddd; padding: 8px 12px; font-size: 16px; }
 .chat-input .primary { padding: 8px 14px; border-radius: 18px; font-size: 14px; }
