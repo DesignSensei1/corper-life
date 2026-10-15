@@ -1,14 +1,15 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { clearSave, useGame } from '../game/store'
 import { cupPlace, objectives, ordinal } from '../game/stations'
-import { ending } from '../game/endings'
+import { ending, netWorth } from '../game/endings'
+import { QUICK_REPLIES, chatMembers, groupName, unreadChat } from '../game/chat'
 import { CDS, ROLES, TRADES, isOffice, PPA_WORK } from '../game/people'
 import type { GameData } from '../game/types'
-import { ALLAWEE, fmtTime, naira } from '../game/time'
+import { ALLAWEE, SERVICE_MONTHS, WEEKDAYS, fmtTime, naira, weekdayOf } from '../game/time'
 import { BACKGROUNDS, roadKm, travelOptions } from '../game/journey'
 import type { Travel } from '../game/types'
 import { STATES } from '../game/states'
-import { ONLINE_ENABLED, lastSeen, useOnline } from '../online/campmates'
+import { ONLINE_ENABLED, lastSeen, sendLiveChat, useOnline } from '../online/campmates'
 
 export function Menu() {
   const hasSave = useGame((s) => s.hasSave)
@@ -129,7 +130,8 @@ export function EventModal() {
 
 export function Phone() {
   const s = useGame()
-  const [tab, setTab] = useState<'tasks' | 'wallet' | 'people' | 'mates' | 'me'>('tasks')
+  const [tab, setTab] = useState<'tasks' | 'wallet' | 'chat' | 'people' | 'mates' | 'me'>('tasks')
+  const unread = s.phase === 'ppa' ? unreadChat(s) : 0
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.code === 'KeyP') useGame.getState().togglePhone()
@@ -144,9 +146,10 @@ export function Phone() {
       <div className="phone" onClick={(e) => e.stopPropagation()}>
         <div className="phone-notch" />
         <div className="tabs">
-          {(['tasks', 'wallet', 'people', 'mates', 'me'] as const).map((t) => (
+          {(['tasks', 'wallet', 'chat', 'people', 'mates', 'me'] as const).map((t) => (
             <button key={t} className={tab === t ? 'tab on' : 'tab'} onClick={() => setTab(t)}>
-              {t === 'tasks' ? 'Tasks' : t === 'wallet' ? 'Wallet' : t === 'people' ? 'Friends' : t === 'mates' ? 'Online' : 'Profile'}
+              {t === 'tasks' ? 'Tasks' : t === 'wallet' ? 'Wallet' : t === 'chat' ? 'Chat' : t === 'people' ? 'Friends' : t === 'mates' ? 'Online' : 'Profile'}
+              {t === 'chat' && unread > 0 && tab !== 'chat' && <span className="tab-dot">{unread > 9 ? '9+' : unread}</span>}
             </button>
           ))}
         </div>
@@ -161,7 +164,7 @@ export function Phone() {
               <li className="muted tiny">
                 {s.phase === 'camp'
                   ? 'Camp lasts till Thursday. Camp allawee lands Tuesday noon after you register.'
-                  : `Each month: 3 PPA days, CDS on Thursday, clearance Friday or Saturday. Allawee (${naira(ALLAWEE)}) pays Monday if cleared.`}
+                  : `Service lasts ${SERVICE_MONTHS} months (${s.monthsCleared} cleared so far). Each month: 3 PPA days, CDS on Thursday, clearance Friday or Saturday. Allawee (${naira(ALLAWEE)}) pays Monday if cleared. Miss a clearance and one extra month is added to your service.`}
               </li>
             </ul>
           )}
@@ -170,6 +173,7 @@ export function Phone() {
               <div className="balance">
                 <span className="muted tiny">Balance</span>
                 <strong>{naira(s.money)}</strong>
+                {!!s.f.bankAcct && <span className="muted tiny">🏦 Savings: {naira(s.f.savings ?? 0)}</span>}
               </div>
               <ul className="txs">
                 {[...s.txs].reverse().map((t, i) => (
@@ -187,6 +191,7 @@ export function Phone() {
               </ul>
             </div>
           )}
+          {tab === 'chat' && <Chat s={s} />}
           {tab === 'people' && <Friends s={s} />}
           {tab === 'mates' && <Campmates state={s.posting?.state ?? ''} camp={s.posting?.camp ?? ''} />}
           {tab === 'me' && (
@@ -227,6 +232,86 @@ export function Phone() {
           Close
         </button>
       </div>
+    </div>
+  )
+}
+
+function Chat({ s }: { s: GameData }) {
+  const [room, setRoom] = useState<'lga' | 'live'>('lga')
+  const [text, setText] = useState('')
+  const live = useOnline((o) => o.chat)
+  const status = useOnline((o) => o.status)
+  const sendChat = useGame((g) => g.sendChat)
+  const readChat = useGame((g) => g.readChat)
+  const end = useRef<HTMLDivElement>(null)
+  const shirts = new Map(chatMembers(s).map((m) => [m.name, m.shirt]))
+  const lines: { from: string; text: string; me?: boolean; when?: string }[] =
+    room === 'lga' ? s.chat.map((m) => ({ ...m, when: `${WEEKDAYS[weekdayOf(m.at)].slice(0, 3)} ${fmtTime(m.at)}` })) : live.map((m) => ({ ...m, from: m.name }))
+
+  useEffect(() => {
+    if (room === 'lga') readChat()
+    end.current?.scrollIntoView({ block: 'end' })
+  }, [lines.length, room, readChat])
+
+  const send = (t: string) => {
+    if (!t.trim()) return
+    if (room === 'lga') sendChat(t)
+    else if (!sendLiveChat(s.name, t)) return
+    setText('')
+  }
+
+  return (
+    <div className="chat">
+      {ONLINE_ENABLED && (
+        <div className="chat-rooms">
+          <button className={room === 'lga' ? 'tab on' : 'tab'} onClick={() => setRoom('lga')}>
+            {groupName(s)}
+          </button>
+          <button className={room === 'live' ? 'tab on' : 'tab'} onClick={() => setRoom('live')}>
+            🌐 Real players
+          </button>
+        </div>
+      )}
+      {room === 'lga' && s.phase !== 'ppa' ? (
+        <p className="muted">Your LGA corpers' group starts when you get to your PPA. Your bunkmates will be there!</p>
+      ) : (
+        <>
+          <div className="tiny muted">{room === 'lga' ? `${groupName(s)} · ${chatMembers(s).length + 1} members` : `Corpers playing in ${s.posting?.state ?? 'your state'} right now. Messages aren't saved.`}</div>
+          <div className="chat-log">
+            {room === 'live' && status !== 'live' && <p className="muted">Connecting to the other players…</p>}
+            {lines.length === 0 && <p className="muted">No messages yet. Say hi!</p>}
+            {lines.map((m, i) => (
+              <div key={i} className={m.me ? 'bubble me' : 'bubble'}>
+                {!m.me && <b style={{ color: shirts.get(m.from) ?? '#555' }}>{m.from}</b>}
+                <span>{m.text}</span>
+                {m.when && <small>{m.when}</small>}
+              </div>
+            ))}
+            <div ref={end} />
+          </div>
+          {room === 'lga' && (
+            <div className="chat-quick">
+              {QUICK_REPLIES.map((q) => (
+                <button key={q} className="secondary" onClick={() => send(q)}>
+                  {q}
+                </button>
+              ))}
+            </div>
+          )}
+          <form
+            className="chat-input"
+            onSubmit={(e) => {
+              e.preventDefault()
+              send(text)
+            }}
+          >
+            <input value={text} maxLength={200} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.stopPropagation()} placeholder="Type a message…" aria-label="Message" />
+            <button className="primary" type="submit" disabled={!text.trim()}>
+              Send
+            </button>
+          </form>
+        </>
+      )}
     </div>
   )
 }
@@ -321,7 +406,7 @@ export function EndScreen() {
         )}
         <div className="posting">
           <div>
-            <span className="muted">Savings</span> {naira(s.money)}
+            <span className="muted">Savings</span> {naira(netWorth(s))}
           </div>
           <div>
             <span className="muted">Corps rating</span> {Math.round(s.rating)}/100
@@ -330,7 +415,8 @@ export function EndScreen() {
             <span className="muted">CDS project</span> {Math.round(s.project)}%
           </div>
           <div>
-            <span className="muted">Months cleared</span> {s.monthsCleared}
+            <span className="muted">Months served</span> {s.monthsCleared + s.monthsMissed}
+            {s.monthsMissed > 0 ? ` (${s.monthsMissed} extension)` : ''}
           </div>
           <div>
             <span className="muted">Skills</span> {Math.round(s.skills)}/100

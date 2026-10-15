@@ -5,7 +5,8 @@ import { assignPPA, randomCallUp } from './states'
 import { CDS_EVENT, ROLE_EVENT, TRADE_EVENT, rollEvent } from './events'
 import { PPA_WORK, makeMates, ppaKind } from './people'
 import { BACKGROUNDS, nightBusMishap, travelOptions } from './journey'
-import { ALLAWEE, END_DAY, MIN_PER_SEC, PPA_START_DAY, RENT, dayOf, hourOf, monthOf, naira, weekdayOf, WEEKDAYS } from './time'
+import { ALLAWEE, CALENDAR, MIN_PER_SEC, PPA_START_DAY, RENT, SERVICE_MONTHS, dayOf, hourOf, monthOf, naira, weekdayOf, WEEKDAYS } from './time'
+import { chattedToday, chatMembers, hourlyChat, replyTo } from './chat'
 
 const SAVE_KEY = 'corper-life-save-v1'
 
@@ -49,6 +50,8 @@ interface Api {
   toggleMap: (open?: boolean) => void
   closeCallUp: () => void
   dismissMsg: (id: number) => void
+  sendChat: (text: string) => void
+  readChat: () => void
 }
 
 export type Store = GameData & Runtime & Api
@@ -80,7 +83,8 @@ const fresh = (name: string, home = '', background: Background = ''): GameData =
   gear: 0,
   bizEarned: 0,
   cdsKind: '',
-  f: {},
+  chat: [],
+  f: { cal: CALENDAR },
 })
 
 const DATA_KEYS = Object.keys(fresh('')) as (keyof GameData)[]
@@ -105,10 +109,29 @@ function loadSave(): GameData | null {
     if (!raw) return null
     const d = JSON.parse(raw) as GameData
     // saves from older versions lack the newer fields
-    return d.phase && d.phase !== 'menu' ? { ...fresh(d.name), ...d } : null
+    return d.phase && d.phase !== 'menu' ? { ...fresh(d.name), ...d, f: d.f ?? {} } : null
   } catch {
     return null
   }
+}
+
+/**
+ * Saves from the 4-month service year move to the 12-month calendar in place.
+ * Corpers who already finished at month 4 carry on into month 5 with their progress.
+ */
+function migrate(d: GameData): { d: GameData; note: string | null } {
+  if ((d.f.cal ?? 0) >= CALENDAR) return { d, note: null }
+  const out: GameData = { ...d, f: { ...d.f, cal: CALENDAR } }
+  if (!d.posting?.lga || (d.phase !== 'ppa' && d.phase !== 'ended')) return { d: out, note: null }
+  if (d.phase === 'ended' && d.monthsCleared < SERVICE_MONTHS) {
+    out.phase = 'ppa'
+    out.month = { ppaDays: 0, cds: 0, cleared: false }
+    const rent = d.f.rent ?? RENT
+    out.money = d.money - rent
+    out.txs = [...d.txs, { day: dayOf(d.minutes), label: 'Lodge rent', amount: -rent }].slice(-40)
+  }
+  const left = SERVICE_MONTHS + out.monthsMissed - out.monthsCleared
+  return { d: out, note: `📢 NYSC update: the service year is now ${SERVICE_MONTHS} months. You have ${left} more month${left === 1 ? '' : 's'} to serve. Your progress is kept.` }
 }
 
 export const stationsFor = (phase: GameData['phase']): Station[] => (phase === 'ppa' ? TOWN_STATIONS : CAMP_STATIONS)
@@ -155,6 +178,15 @@ function advance(dr: Draft, mins: number, sleeping = false) {
 
   for (let day = startDay + 1; day <= dayOf(d.minutes); day++) onNewDay(dr, day)
 
+  // the LGA corpers' group chat keeps going while you live your life
+  if (d.phase === 'ppa' && Math.floor(d.minutes / 60) > Math.floor((d.minutes - mins) / 60)) {
+    const hours = Math.min(12, Math.floor(d.minutes / 60) - Math.floor((d.minutes - mins) / 60))
+    for (let i = hours - 1; i >= 0; i--) {
+      const m = hourlyChat({ ...d, minutes: (Math.floor(d.minutes / 60) - i) * 60 })
+      if (m) d.chat = [...d.chat, m].slice(-60)
+    }
+  }
+
   // Camp allawee lands on Tuesday noon once you're registered
   if (d.phase === 'camp' && d.f.registered && !d.f.campAllawee && d.minutes >= 1440 + 12 * 60) {
     d.f = { ...d.f, campAllawee: 1 }
@@ -191,15 +223,23 @@ function onNewDay(dr: Draft, day: number) {
     applyEffect(dr, { money: ALLAWEE, tx: `Allawee (month ${m})` }, 'Allawee')
     note(dr, `📱 Credit alert! Month ${m} allawee paid.`, 'good')
   } else {
+    // a missed clearance doesn't end the game: you serve an extra month at the end
     d.monthsMissed++
     d.rating = clamp(d.rating - 8)
-    note(dr, `You were not cleared for month ${m}, so no allawee. Your service year may be extended.`, 'bad')
+    note(dr, `You were not cleared for month ${m}, so no allawee. Your service is extended by one month (${SERVICE_MONTHS + d.monthsMissed} months in total).`, 'bad')
   }
   d.month = { ppaDays: 0, cds: 0, cleared: false }
-  if (day >= END_DAY) {
+  const saved = d.f.savings ?? 0
+  if (saved > 0) {
+    const interest = Math.round(saved * 0.01)
+    d.f = { ...d.f, savings: saved + interest }
+    note(dr, `🏦 Your savings earned ${naira(interest)} interest.`, 'money')
+  }
+  if (d.monthsCleared >= SERVICE_MONTHS) {
     d.phase = 'ended'
     return
   }
+  if (d.monthsCleared === SERVICE_MONTHS - 1) note(dr, 'Final month! Get cleared this week and you pass out at POP.', 'good')
   const rent = d.f.rent ?? RENT
   applyEffect(dr, { money: -rent, tx: 'Lodge rent' }, 'Lodge rent')
   note(dr, `Rent of ${naira(rent)} paid for the month.`, 'info')
@@ -303,9 +343,12 @@ export const useGame = create<Store>()((set, get) => {
     },
 
     continueGame: () => {
-      const d = loadSave()
-      if (!d) return
+      const saved = loadSave()
+      if (!saved) return
+      const { d, note: update } = migrate(saved)
       set({ ...d, posting: d.posting ?? randomCallUp(d.home), messages: [], event: null, minigame: null, showCallUp: !!d.home && !d.travel, tripLog: null, mapOpen: false, showPosting: d.phase === 'camp' && !!d.f.postingReady })
+      if (update) commit((dr) => note(dr, update, 'good'))
+      else save(get())
     },
 
     quitToMenu: () => {
@@ -403,7 +446,9 @@ export const useGame = create<Store>()((set, get) => {
         d.energy = clamp(d.energy + 20)
         applyEffect(dr, { money: -5000, tx: 'Transport to PPA' }, 'Transport')
         applyEffect(dr, { money: -RENT, tx: 'Lodge rent' }, 'Lodge rent')
-        note(dr, `Welcome to ${d.posting?.lga}! Month ${monthOf(d.minutes)} begins. Work at your PPA, attend CDS on Thursday, then get cleared.`, 'good')
+        note(dr, `Welcome to ${d.posting?.lga}! Month ${monthOf(d.minutes)} of ${SERVICE_MONTHS} begins. Work at your PPA, attend CDS on Thursday, then get cleared.`, 'good')
+        const [first] = chatMembers(d)
+        d.chat = [{ at: d.minutes, from: first?.name ?? 'Corper', text: `Welcome to the ${d.posting?.lga} corpers group, ${d.name}! Tap here any time to gist with us 👋` }]
       })
       set({ showPosting: false, nearby: null, event: get().trade ? null : TRADE_EVENT })
     },
@@ -422,6 +467,28 @@ export const useGame = create<Store>()((set, get) => {
     },
 
     dismissMsg: (id) => set({ messages: get().messages.filter((m) => m.id !== id) }),
+
+    sendChat: (text) => {
+      const t = text.trim().slice(0, 200)
+      if (!t || get().phase !== 'ppa') return
+      commit((dr) => {
+        const d = dr.d
+        const reply = replyTo(d, t)
+        d.chat = [...d.chat, { at: d.minutes, from: d.name, text: t, me: true }, { ...reply, at: d.minutes + 1 }].slice(-60)
+        d.f = { ...d.f, chatReadAt: d.minutes + 1 }
+        if (!chattedToday(d)) {
+          d.f = { ...d.f, chatDay: dayOf(d.minutes) + 1 }
+          d.mood = clamp(d.mood + 4)
+          d.mates = d.mates.map((m) => (m.name === reply.from ? { ...m, bond: clamp(m.bond + 3) } : m))
+        }
+      })
+    },
+
+    readChat: () => {
+      const { chat } = get()
+      const last = chat[chat.length - 1]?.at ?? 0
+      if ((get().f.chatReadAt ?? -1) < last) commit((dr) => (dr.d.f = { ...dr.d.f, chatReadAt: last }), false)
+    },
   }
 })
 

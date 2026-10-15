@@ -2,7 +2,9 @@ import { useEffect, useRef } from 'react'
 import { actionStatus, costOf, labelOf, stationsFor, useGame } from '../game/store'
 import { objectives } from '../game/stations'
 import type { Action, GameData } from '../game/types'
-import { WEEKDAYS, dayOf, fmtTime, monthOf, naira, weekdayOf, SERVICE_MONTHS } from '../game/time'
+import { WEEKDAYS, dayOf, fmtTime, monthLabel, naira, weekdayOf } from '../game/time'
+import { useSound } from '../game/sound'
+import { unreadChat } from '../game/chat'
 import { input } from '../game/input'
 
 function Bar({ icon, label, value, color }: { icon: string; label: string; value: number; color: string }) {
@@ -21,7 +23,9 @@ const dur = (m: number) => (m >= 60 ? `${Math.round((m / 60) * 10) / 10}h` : `${
 function TopBar() {
   const s = useGame()
   const day = dayOf(s.minutes)
-  const when = s.phase === 'camp' ? `Camp · Day ${day + 1}` : `Month ${monthOf(s.minutes)} of ${SERVICE_MONTHS}`
+  const when = s.phase === 'camp' ? `Camp · Day ${day + 1}` : monthLabel(s.minutes, s.monthsMissed)
+  const sound = useSound()
+  const unread = s.phase === 'ppa' ? unreadChat(s) : 0
   const next = objectives(s).find((o) => !o.done)
   return (
     <div className="topbar">
@@ -40,8 +44,11 @@ function TopBar() {
         <button className="icon-btn map-btn" onClick={() => s.toggleMap()} aria-label="Map">
           🗺️<span>Map</span>
         </button>
-        <button className="icon-btn" onClick={() => s.togglePhone()} aria-label="Phone">
-          📱
+        <button className="icon-btn" onClick={() => s.togglePhone()} aria-label={unread ? `Phone, ${unread} new chat messages` : 'Phone'}>
+          📱{unread > 0 && <span className="badge">{unread > 9 ? '9+' : unread}</span>}
+        </button>
+        <button className="icon-btn" onClick={sound.toggle} aria-label={sound.muted ? 'Turn sound on' : 'Mute sound'} title={sound.muted ? 'Sound off' : 'Sound on'}>
+          {sound.muted ? '🔇' : '🔊'}
         </button>
         <button className="icon-btn" onClick={() => s.quitToMenu()} aria-label="Save and quit">
           ☰

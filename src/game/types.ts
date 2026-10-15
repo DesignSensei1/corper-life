@@ -27,6 +27,15 @@ export interface Tx {
   amount: number
 }
 
+/** A message in your LGA corpers' group chat. */
+export interface ChatMsg {
+  /** game minutes when it was posted */
+  at: number
+  from: string
+  text: string
+  me?: boolean
+}
+
 export interface MonthProgress {
   ppaDays: number
   cds: number
@@ -89,6 +98,8 @@ export interface GameData {
   /** total earned from your SAED trade business */
   bizEarned: number
   cdsKind: CdsKind
+  /** your LGA corpers' group chat */
+  chat: ChatMsg[]
   /** generic counters and flags: drills, lectures, registered, food, last-done days... */
   f: Record<string, number>
 }
